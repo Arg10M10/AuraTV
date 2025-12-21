@@ -5,118 +5,150 @@ import VideoPlayer from "@/components/VideoPlayer";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Globe } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-// Nueva interfaz para los canales del M3U
-interface M3uChannel {
+// Interfaces para la API de iptv-org
+interface IptvOrgChannel {
+  id: string;
+  name: string;
+  logo: string | null;
+  country: string;
+  categories: string[];
+  is_nsfw: boolean;
+}
+
+interface IptvOrgStream {
+  channel: string;
+  url: string;
+  status: string;
+}
+
+interface IptvOrgCountry {
+  code: string;
+  name: string;
+}
+
+// Interfaz para el canal combinado
+interface MergedChannel {
+  id: string;
   name: string;
   logo: string;
   url: string;
-  group: string;
+  country: string; // Nombre completo del país
+  status: string;
 }
 
-// Nueva interfaz para los grupos de canales
-interface ChannelGroup {
+// Interfaz para el grupo de países
+interface CountryGroup {
   name: string;
-  channels: M3uChannel[];
+  channels: MergedChannel[];
 }
 
-// Función para parsear el contenido de un M3U
-const parseM3u = (m3uText: string): M3uChannel[] => {
-  const channels: M3uChannel[] = [];
-  const lines = m3uText.split('\n');
+const fetchIptvOrgData = async (): Promise<MergedChannel[]> => {
+  const [channelsRes, streamsRes, countriesRes] = await Promise.all([
+    fetch("https://iptv-org.github.io/api/channels.json"),
+    fetch("https://iptv-org.github.io/api/streams.json"),
+    fetch("https://iptv-org.github.io/api/countries.json"),
+  ]);
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.startsWith('#EXTINF:')) {
-      const infoLine = line;
-      const urlLine = lines[i + 1]?.trim();
+  if (!channelsRes.ok || !streamsRes.ok || !countriesRes.ok) {
+    throw new Error("Error al cargar los datos de los canales");
+  }
 
-      if (urlLine && !urlLine.startsWith('#')) {
-        const nameMatch = infoLine.match(/tvg-name="([^"]*)"/);
-        const logoMatch = infoLine.match(/tvg-logo="([^"]*)"/);
-        const groupMatch = infoLine.match(/group-title="([^"]*)"/);
+  const channels: IptvOrgChannel[] = await channelsRes.json();
+  const streams: IptvOrgStream[] = await streamsRes.json();
+  const countries: IptvOrgCountry[] = await countriesRes.json();
 
-        // Usar el nombre después de la coma como fallback
-        const nameFallback = infoLine.split(',').pop() || 'Canal sin nombre';
-        
-        const name = nameMatch ? nameMatch[1] : nameFallback;
-        const logo = logoMatch ? logoMatch[1] : '/placeholder.svg';
-        const group = groupMatch ? groupMatch[1] : 'General';
-        
-        channels.push({
-          name,
-          logo,
-          url: urlLine,
-          group,
-        });
-        i++; // Avanzar para saltar la línea de la URL ya procesada
-      }
+  const streamsMap = new Map<string, IptvOrgStream>();
+  // Priorizar streams 'online', luego 'geoblocked'
+  for (const stream of streams) {
+    if (stream.status === 'online' && !streamsMap.has(stream.channel)) {
+      streamsMap.set(stream.channel, stream);
     }
   }
-  return channels;
-};
-
-
-const fetchChannels = async (): Promise<M3uChannel[]> => {
-  const response = await fetch(
-    "https://pastebin.com/raw/YVBjE9ii"
-  );
-  if (!response.ok) {
-    throw new Error("La respuesta de la red no fue correcta");
+  for (const stream of streams) {
+    if (['geoblocked', 'offline'].includes(stream.status) && !streamsMap.has(stream.channel)) {
+       streamsMap.set(stream.channel, stream);
+    }
   }
-  const m3uText = await response.text();
-  return parseM3u(m3uText);
+
+  const countriesMap = new Map<string, string>();
+  for (const country of countries) {
+    countriesMap.set(country.code, country.name);
+  }
+
+  const mergedChannels: MergedChannel[] = [];
+  for (const channel of channels) {
+    if (channel.is_nsfw) continue;
+
+    const stream = streamsMap.get(channel.id);
+    if (stream) {
+      mergedChannels.push({
+        id: channel.id,
+        name: channel.name,
+        logo: channel.logo || '/placeholder.svg',
+        url: stream.url,
+        country: countriesMap.get(channel.country) || channel.country,
+        status: stream.status,
+      });
+    }
+  }
+
+  return mergedChannels;
 };
 
 const LiveTV = () => {
-  const [selectedGroup, setSelectedGroup] = useState<ChannelGroup | null>(null);
-  const [currentChannel, setCurrentChannel] = useState<M3uChannel | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<CountryGroup | null>(null);
+  const [currentChannel, setCurrentChannel] = useState<MergedChannel | null>(null);
 
   const {
     data: channels,
     isLoading,
     isError,
-  } = useQuery<M3uChannel[]>({
-    queryKey: ["movistarChannels"],
-    queryFn: fetchChannels,
+  } = useQuery<MergedChannel[]>({
+    queryKey: ["iptvOrgChannels"],
+    queryFn: fetchIptvOrgData,
   });
 
-  const groups = useMemo(() => {
+  const countries = useMemo(() => {
     if (!channels) return [];
     const grouped = channels.reduce(
       (acc, channel) => {
-        const groupName = channel.group;
-        if (!acc[groupName]) {
-          acc[groupName] = { name: groupName, channels: [] };
+        const countryName = channel.country;
+        if (!acc[countryName]) {
+          acc[countryName] = { name: countryName, channels: [] };
         }
-        acc[groupName].channels.push(channel);
+        acc[countryName].channels.push(channel);
         return acc;
       },
-      {} as Record<string, ChannelGroup>
+      {} as Record<string, CountryGroup>
     );
 
     return Object.values(grouped).sort((a, b) => a.name.localeCompare(b.name));
   }, [channels]);
 
   useEffect(() => {
-    // Seleccionar el primer canal del primer grupo por defecto
-    if (!currentChannel && groups.length > 0 && groups[0].channels.length > 0) {
-      setCurrentChannel(groups[0].channels[0]);
+    if (!currentChannel && countries.length > 0 && countries[0].channels.length > 0) {
+      setCurrentChannel(countries[0].channels[0]);
     }
-  }, [groups, currentChannel]);
+  }, [countries, currentChannel]);
 
-  const handleGroupSelect = (group: ChannelGroup) => {
-    setSelectedGroup(group);
+  const handleCountrySelect = (country: CountryGroup) => {
+    setSelectedCountry(country);
   };
 
-  const handleChannelSelect = (channel: M3uChannel) => {
+  const handleChannelSelect = (channel: MergedChannel) => {
     setCurrentChannel(channel);
   };
 
-  const handleBackToGroups = () => {
-    setSelectedGroup(null);
+  const handleBackToCountries = () => {
+    setSelectedCountry(null);
   };
 
   if (isLoading) {
@@ -155,25 +187,25 @@ const LiveTV = () => {
               <VideoPlayer url={currentChannel.url} />
             ) : (
               <div className="aspect-video w-full bg-black flex items-center justify-center">
-                <p className="text-white">Por favor, selecciona un grupo y un canal.</p>
+                <p className="text-white">Por favor, selecciona un país y un canal.</p>
               </div>
             )}
           </Card>
         </div>
         <div>
-          {!selectedGroup ? (
+          {!selectedCountry ? (
             <>
-              <h2 className="text-2xl font-bold mb-4">Grupos</h2>
+              <h2 className="text-2xl font-bold mb-4">Países</h2>
               <ScrollArea className="h-[60vh] pr-4">
                 <div className="space-y-4">
-                  {groups.map((group) => (
+                  {countries.map((country) => (
                     <Card
-                      key={group.name}
+                      key={country.name}
                       className="cursor-pointer transition-all hover:border-primary"
-                      onClick={() => handleGroupSelect(group)}
+                      onClick={() => handleCountrySelect(country)}
                     >
                       <CardContent className="flex items-center p-4">
-                        <span className="font-semibold">{group.name}</span>
+                        <span className="font-semibold">{country.name}</span>
                       </CardContent>
                     </Card>
                   ))}
@@ -186,20 +218,20 @@ const LiveTV = () => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handleBackToGroups}
+                  onClick={handleBackToCountries}
                   className="mr-2"
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-                <h2 className="text-2xl font-bold">{selectedGroup.name}</h2>
+                <h2 className="text-2xl font-bold">{selectedCountry.name}</h2>
               </div>
               <ScrollArea className="h-[60vh] pr-4">
                 <div className="space-y-4">
-                  {selectedGroup.channels.map((channel) => (
+                  {selectedCountry.channels.map((channel) => (
                     <Card
-                      key={channel.name}
+                      key={channel.id}
                       className={`cursor-pointer transition-all hover:border-primary ${
-                        currentChannel?.url === channel.url ? "border-primary" : ""
+                        currentChannel?.id === channel.id ? "border-primary" : ""
                       }`}
                       onClick={() => handleChannelSelect(channel)}
                     >
@@ -208,9 +240,23 @@ const LiveTV = () => {
                           src={channel.logo}
                           alt={channel.name}
                           className="w-12 h-12 mr-4 object-contain bg-gray-200 dark:bg-gray-800 rounded-md p-1"
-                          onError={(e) => (e.currentTarget.style.display = 'none')}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.onerror = null; 
+                            target.src = '/placeholder.svg';
+                          }}
                         />
                         <span className="font-semibold flex-grow">{channel.name}</span>
+                        {channel.status === 'geoblocked' && (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Globe className="h-5 w-5 text-muted-foreground ml-2" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Este canal puede estar bloqueado en tu región.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
                       </CardContent>
                     </Card>
                   ))}
