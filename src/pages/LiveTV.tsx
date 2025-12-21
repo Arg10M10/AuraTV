@@ -237,7 +237,7 @@ const LiveTV = () => {
             {currentChannel?.name || "TV en Vivo"}
           </h1>
           <Card className="overflow-hidden">
-            <VideoPlayer url={currentChannel ? `https://corsproxy.io/?${currentChannel.url}` : ""} />
+            <VideoPlayer url={currentChannel ? `https://proxy.cors.sh/${currentChannel.url}` : ""} />
           </Card>
         </div>
         <div>

@@ -1,28 +1,54 @@
 import ReactPlayer from "react-player";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, AlertTriangle, Tv } from "lucide-react";
 
 interface VideoPlayerProps {
   url: string;
 }
 
+const LOADING_TIMEOUT = 20000; // 20 segundos
+
 const VideoPlayer = ({ url }: VideoPlayerProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEmpty, setIsEmpty] = useState(!url);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const clearTimeoutRef = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
 
   useEffect(() => {
     setIsLoading(true);
     setError(null);
     setIsEmpty(!url);
-  }, [url]);
+    clearTimeoutRef();
+
+    if (url) {
+      timeoutRef.current = setTimeout(() => {
+        if (isLoading) {
+          setError("El canal tardó demasiado en responder. Puede que esté caído o bloqueado.");
+          setIsLoading(false);
+        }
+      }, LOADING_TIMEOUT);
+    }
+
+    return () => {
+      clearTimeoutRef();
+    };
+  }, [url, isLoading]);
 
   const handleReady = () => {
+    clearTimeoutRef();
     setIsLoading(false);
     setError(null);
   };
 
   const handleError = (e: any) => {
+    clearTimeoutRef();
     console.error("Error de ReactPlayer:", e);
     setIsLoading(false);
     setError("El canal no está disponible o la conexión fue bloqueada (posible problema de CORS o canal caído).");
