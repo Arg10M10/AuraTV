@@ -21,3 +21,26 @@ export const liveChannels = [
   { id: 4, title: "Canal de Música", imageUrl: "/placeholder.svg" },
   { id: 5, title: "Canal Infantil", imageUrl: "/placeholder.svg" },
 ];
+
+export const liveTvChannels = [
+  {
+    name: "24 Horas (Chile)",
+    logo: "https://raw.githubusercontent.com/Free-TV/IPTV/master/logos/24Horas.cl.png",
+    url: "https://mdstrm.com/live-stream-playlist/57d1a22064f5d85712b20dab.m3u8",
+  },
+  {
+    name: "Bloomberg TV (EE.UU.)",
+    logo: "https://raw.githubusercontent.com/Free-TV/IPTV/master/logos/BloombergTV.us.png",
+    url: "https://live-streams.bloomberg.com/live/bblive/playlist.m3u8",
+  },
+  {
+    name: "Red Bull TV (Internacional)",
+    logo: "https://raw.githubusercontent.com/Free-TV/IPTV/master/logos/RedBullTV.int.png",
+    url: "https://rbmn-live.akamaized.net/hls/live/590964/rbmn_live/main.m3u8",
+  },
+  {
+    name: "France 24 (Francia)",
+    logo: "https://raw.githubusercontent.com/Free-TV/IPTV/master/logos/France24English.fr.png",
+    url: "https://f24hls-i.akamaihd.net/hls/live/221192/F24_EN_HI_HLS/master.m3u8",
+  },
+];
