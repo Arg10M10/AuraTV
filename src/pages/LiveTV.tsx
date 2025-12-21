@@ -235,7 +235,7 @@ const LiveTV = () => {
           </h1>
           <Card className="overflow-hidden">
             {currentChannel ? (
-              <VideoPlayer url={currentChannel.url} />
+              <VideoPlayer url={`https://corsproxy.io/?${currentChannel.url}`} />
             ) : (
               <div className="aspect-video w-full bg-black flex items-center justify-center">
                 <p className="text-white">Por favor, selecciona un país y un canal.</p>
