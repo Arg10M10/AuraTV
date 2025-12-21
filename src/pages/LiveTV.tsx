@@ -5,87 +5,118 @@ import VideoPlayer from "@/components/VideoPlayer";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Globe } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
-interface ApiChannel {
+// Nueva interfaz para los canales del M3U
+interface M3uChannel {
   name: string;
   logo: string;
   url: string;
-  is_geoblocked?: boolean;
-  country: {
-    code: string;
-    name: string;
-  };
+  group: string;
 }
 
-interface Country {
+// Nueva interfaz para los grupos de canales
+interface ChannelGroup {
   name: string;
-  channels: ApiChannel[];
+  channels: M3uChannel[];
 }
 
-const fetchChannels = async (): Promise<ApiChannel[]> => {
+// Función para parsear el contenido de un M3U
+const parseM3u = (m3uText: string): M3uChannel[] => {
+  const channels: M3uChannel[] = [];
+  const lines = m3uText.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('#EXTINF:')) {
+      const infoLine = line;
+      const urlLine = lines[i + 1]?.trim();
+
+      if (urlLine && !urlLine.startsWith('#')) {
+        const nameMatch = infoLine.match(/tvg-name="([^"]*)"/);
+        const logoMatch = infoLine.match(/tvg-logo="([^"]*)"/);
+        const groupMatch = infoLine.match(/group-title="([^"]*)"/);
+
+        // Usar el nombre después de la coma como fallback
+        const nameFallback = infoLine.split(',').pop() || 'Canal sin nombre';
+        
+        const name = nameMatch ? nameMatch[1] : nameFallback;
+        const logo = logoMatch ? logoMatch[1] : '/placeholder.svg';
+        const group = groupMatch ? groupMatch[1] : 'General';
+        
+        channels.push({
+          name,
+          logo,
+          url: urlLine,
+          group,
+        });
+        i++; // Avanzar para saltar la línea de la URL ya procesada
+      }
+    }
+  }
+  return channels;
+};
+
+
+const fetchChannels = async (): Promise<M3uChannel[]> => {
   const response = await fetch(
-    "https://raw.githubusercontent.com/Free-TV/IPTV/master/channels.json"
+    "https://pastebin.com/raw/YVBjE9ii"
   );
   if (!response.ok) {
     throw new Error("La respuesta de la red no fue correcta");
   }
-  const channels = await response.json();
-  return channels.filter((channel: ApiChannel) => channel.url);
+  const m3uText = await response.text();
+  return parseM3u(m3uText);
 };
 
 const LiveTV = () => {
-  const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
-  const [currentChannel, setCurrentChannel] = useState<ApiChannel | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<ChannelGroup | null>(null);
+  const [currentChannel, setCurrentChannel] = useState<M3uChannel | null>(null);
 
   const {
     data: channels,
     isLoading,
     isError,
-  } = useQuery<ApiChannel[]>({
-    queryKey: ["liveChannels"],
+  } = useQuery<M3uChannel[]>({
+    queryKey: ["movistarChannels"],
     queryFn: fetchChannels,
   });
 
-  const countries = useMemo(() => {
+  const groups = useMemo(() => {
     if (!channels) return [];
     const grouped = channels.reduce(
       (acc, channel) => {
-        const countryName = channel.country.name;
-        if (!acc[countryName]) {
-          acc[countryName] = { name: countryName, channels: [] };
+        const groupName = channel.group;
+        if (!acc[groupName]) {
+          acc[groupName] = { name: groupName, channels: [] };
         }
-        acc[countryName].channels.push(channel);
+        acc[groupName].channels.push(channel);
         return acc;
       },
-      {} as Record<string, Country>
+      {} as Record<string, ChannelGroup>
     );
 
     return Object.values(grouped).sort((a, b) => a.name.localeCompare(b.name));
   }, [channels]);
 
   useEffect(() => {
-    if (!currentChannel && countries.length > 0 && countries[0].channels.length > 0) {
-      setCurrentChannel(countries[0].channels[0]);
+    // Seleccionar el primer canal del primer grupo por defecto
+    if (!currentChannel && groups.length > 0 && groups[0].channels.length > 0) {
+      setCurrentChannel(groups[0].channels[0]);
     }
-  }, [countries, currentChannel]);
+  }, [groups, currentChannel]);
 
-  const handleCountrySelect = (country: Country) => {
-    setSelectedCountry(country);
+  const handleGroupSelect = (group: ChannelGroup) => {
+    setSelectedGroup(group);
   };
 
-  const handleChannelSelect = (channel: ApiChannel) => {
+  const handleChannelSelect = (channel: M3uChannel) => {
     setCurrentChannel(channel);
   };
 
-  const handleBackToCountries = () => {
-    setSelectedCountry(null);
+  const handleBackToGroups = () => {
+    setSelectedGroup(null);
   };
 
   if (isLoading) {
@@ -124,25 +155,25 @@ const LiveTV = () => {
               <VideoPlayer url={currentChannel.url} />
             ) : (
               <div className="aspect-video w-full bg-black flex items-center justify-center">
-                <p className="text-white">Por favor, selecciona un país y un canal.</p>
+                <p className="text-white">Por favor, selecciona un grupo y un canal.</p>
               </div>
             )}
           </Card>
         </div>
         <div>
-          {!selectedCountry ? (
+          {!selectedGroup ? (
             <>
-              <h2 className="text-2xl font-bold mb-4">Países</h2>
+              <h2 className="text-2xl font-bold mb-4">Grupos</h2>
               <ScrollArea className="h-[60vh] pr-4">
                 <div className="space-y-4">
-                  {countries.map((country) => (
+                  {groups.map((group) => (
                     <Card
-                      key={country.name}
+                      key={group.name}
                       className="cursor-pointer transition-all hover:border-primary"
-                      onClick={() => handleCountrySelect(country)}
+                      onClick={() => handleGroupSelect(group)}
                     >
                       <CardContent className="flex items-center p-4">
-                        <span className="font-semibold">{country.name}</span>
+                        <span className="font-semibold">{group.name}</span>
                       </CardContent>
                     </Card>
                   ))}
@@ -155,16 +186,16 @@ const LiveTV = () => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handleBackToCountries}
+                  onClick={handleBackToGroups}
                   className="mr-2"
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-                <h2 className="text-2xl font-bold">{selectedCountry.name}</h2>
+                <h2 className="text-2xl font-bold">{selectedGroup.name}</h2>
               </div>
               <ScrollArea className="h-[60vh] pr-4">
                 <div className="space-y-4">
-                  {selectedCountry.channels.map((channel) => (
+                  {selectedGroup.channels.map((channel) => (
                     <Card
                       key={channel.name}
                       className={`cursor-pointer transition-all hover:border-primary ${
@@ -180,16 +211,6 @@ const LiveTV = () => {
                           onError={(e) => (e.currentTarget.style.display = 'none')}
                         />
                         <span className="font-semibold flex-grow">{channel.name}</span>
-                        {channel.is_geoblocked && (
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Globe className="h-5 w-5 text-muted-foreground ml-2" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Este canal puede estar bloqueado en tu región.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
                       </CardContent>
                     </Card>
                   ))}
