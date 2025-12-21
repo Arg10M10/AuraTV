@@ -135,8 +135,8 @@ const fetchIptvOrgData = async (): Promise<MergedChannel[]> => {
         url: stream.url,
         country: countriesMap.get(channel.country) || channel.country || "Varios",
         status: stream.status,
-        categories: channel.categories.map((catId) => categoriesMap.get(catId) || catId),
-        languages: channel.languages.map((langCode) => languagesMap.get(langCode) || langCode),
+        categories: (channel.categories || []).map((catId) => categoriesMap.get(catId) || catId),
+        languages: (channel.languages || []).map((langCode) => languagesMap.get(langCode) || langCode),
       });
     }
   }
