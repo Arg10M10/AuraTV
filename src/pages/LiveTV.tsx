@@ -121,10 +121,12 @@ const LiveTV = () => {
     const grouped = channels.reduce(
       (acc, channel) => {
         const countryName = channel.country;
-        if (!acc[countryName]) {
-          acc[countryName] = { name: countryName, channels: [] };
+        if (countryName && typeof countryName === 'string') {
+            if (!acc[countryName]) {
+              acc[countryName] = { name: countryName, channels: [] };
+            }
+            acc[countryName].channels.push(channel);
         }
-        acc[countryName].channels.push(channel);
         return acc;
       },
       {} as Record<string, CountryGroup>
@@ -197,19 +199,27 @@ const LiveTV = () => {
             <>
               <h2 className="text-2xl font-bold mb-4">Países</h2>
               <ScrollArea className="h-[60vh] pr-4">
-                <div className="space-y-4">
-                  {countries.map((country) => (
-                    <Card
-                      key={country.name}
-                      className="cursor-pointer transition-all hover:border-primary"
-                      onClick={() => handleCountrySelect(country)}
-                    >
-                      <CardContent className="flex items-center p-4">
-                        <span className="font-semibold">{country.name}</span>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                {countries.length > 0 ? (
+                  <div className="space-y-4">
+                    {countries.map((country) => (
+                      <Card
+                        key={country.name}
+                        className="cursor-pointer transition-all hover:border-primary"
+                        onClick={() => handleCountrySelect(country)}
+                      >
+                        <CardContent className="flex items-center p-4">
+                          <span className="font-semibold">{country.name}</span>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-muted-foreground text-center">
+                      No se encontraron canales para mostrar.
+                    </p>
+                  </div>
+                )}
               </ScrollArea>
             </>
           ) : (
