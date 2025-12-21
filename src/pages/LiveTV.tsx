@@ -58,30 +58,30 @@ const fetchIptvOrgData = async (): Promise<MergedChannel[]> => {
   ]);
 
   if (!channelsRes.ok || !streamsRes.ok || !countriesRes.ok) {
-    throw new Error("Error al cargar los datos de los canales");
+    throw new Error("Error al cargar los datos: Uno de los archivos de la API no se pudo obtener.");
   }
 
   const channels: IptvOrgChannel[] = await channelsRes.json();
   const streams: IptvOrgStream[] = await streamsRes.json();
   const countries: IptvOrgCountry[] = await countriesRes.json();
 
-  const streamsMap = new Map<string, IptvOrgStream>();
-  // Priorizar streams 'online', luego 'geoblocked'
-  for (const stream of streams) {
-    if (stream.status === 'online' && !streamsMap.has(stream.channel)) {
-      streamsMap.set(stream.channel, stream);
-    }
+  if (!channels?.length || !streams?.length || !countries?.length) {
+    throw new Error("Error: La API devolvió datos vacíos o en un formato inesperado.");
   }
+
+  const streamsMap = new Map<string, IptvOrgStream>();
   for (const stream of streams) {
-    if (['geoblocked', 'offline'].includes(stream.status) && !streamsMap.has(stream.channel)) {
-       streamsMap.set(stream.channel, stream);
+    if (!streamsMap.has(stream.channel)) {
+      streamsMap.set(stream.channel, stream);
+    } else {
+      const existingStream = streamsMap.get(stream.channel);
+      if (existingStream?.status !== 'online' && stream.status === 'online') {
+        streamsMap.set(stream.channel, stream);
+      }
     }
   }
 
-  const countriesMap = new Map<string, string>();
-  for (const country of countries) {
-    countriesMap.set(country.code, country.name);
-  }
+  const countriesMap = new Map<string, string>(countries.map(c => [c.code, c.name]));
 
   const mergedChannels: MergedChannel[] = [];
   for (const channel of channels) {
@@ -94,10 +94,14 @@ const fetchIptvOrgData = async (): Promise<MergedChannel[]> => {
         name: channel.name,
         logo: channel.logo || '/placeholder.svg',
         url: stream.url,
-        country: countriesMap.get(channel.country) || channel.country,
+        country: countriesMap.get(channel.country) || channel.country || "Varios",
         status: stream.status,
       });
     }
+  }
+
+  if (mergedChannels.length === 0) {
+    throw new Error("No se pudo combinar ningún canal. Puede que no haya coincidencias entre los datos de la API.");
   }
 
   return mergedChannels;
@@ -111,6 +115,7 @@ const LiveTV = () => {
     data: channels,
     isLoading,
     isError,
+    error,
   } = useQuery<MergedChannel[]>({
     queryKey: ["iptvOrgChannels"],
     queryFn: fetchIptvOrgData,
@@ -121,12 +126,10 @@ const LiveTV = () => {
     const grouped = channels.reduce(
       (acc, channel) => {
         const countryName = channel.country;
-        if (countryName && typeof countryName === 'string') {
-            if (!acc[countryName]) {
-              acc[countryName] = { name: countryName, channels: [] };
-            }
-            acc[countryName].channels.push(channel);
+        if (!acc[countryName]) {
+          acc[countryName] = { name: countryName, channels: [] };
         }
+        acc[countryName].channels.push(channel);
         return acc;
       },
       {} as Record<string, CountryGroup>
@@ -158,7 +161,7 @@ const LiveTV = () => {
       <Layout>
         <div className="flex h-full items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-4 text-xl">Cargando canales...</span>
+          <span className="ml-4 text-xl">Cargando miles de canales...</span>
         </div>
       </Layout>
     );
@@ -168,9 +171,11 @@ const LiveTV = () => {
     return (
       <Layout>
         <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
+          <AlertTitle>Error al cargar canales</AlertTitle>
           <AlertDescription>
-            No se pudieron cargar los canales. Por favor, inténtalo de nuevo más tarde.
+            {error instanceof Error ? error.message : "Ocurrió un error desconocido."}
+            <br />
+            Por favor, inténtalo de nuevo más tarde.
           </AlertDescription>
         </Alert>
       </Layout>
