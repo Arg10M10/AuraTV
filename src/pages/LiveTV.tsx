@@ -193,14 +193,17 @@ const LiveTV = () => {
   }, [channels, selectedCategory, selectedLanguage]);
 
   useEffect(() => {
-    if (!currentChannel && filteredCountries.length > 0 && filteredCountries[0].channels.length > 0) {
-      setCurrentChannel(filteredCountries[0].channels[0]);
+    if (filteredCountries.length > 0 && filteredCountries[0].channels.length > 0) {
+      // No seleccionamos un canal por defecto para que el usuario elija
     }
-  }, [filteredCountries, currentChannel]);
+  }, [filteredCountries]);
 
   const handleCountrySelect = (country: CountryGroup) => setSelectedCountry(country);
   const handleChannelSelect = (channel: MergedChannel) => setCurrentChannel(channel);
-  const handleBackToCountries = () => setSelectedCountry(null);
+  const handleBackToCountries = () => {
+    setSelectedCountry(null);
+    // No reseteamos el canal actual para que el video no desaparezca al volver
+  };
 
   if (isLoading) {
     return (
@@ -231,16 +234,10 @@ const LiveTV = () => {
       <div className="grid md:grid-cols-3 gap-8">
         <div className="md:col-span-2">
           <h1 className="text-3xl font-bold mb-4 truncate">
-            {currentChannel?.name || "Selecciona un canal"}
+            {currentChannel?.name || "TV en Vivo"}
           </h1>
           <Card className="overflow-hidden">
-            {currentChannel ? (
-              <VideoPlayer url={`https://corsproxy.io/?${currentChannel.url}`} />
-            ) : (
-              <div className="aspect-video w-full bg-black flex items-center justify-center">
-                <p className="text-white">Por favor, selecciona un país y un canal.</p>
-              </div>
-            )}
+            <VideoPlayer url={currentChannel ? `https://corsproxy.io/?${currentChannel.url}` : ""} />
           </Card>
         </div>
         <div>

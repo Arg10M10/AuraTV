@@ -1,6 +1,6 @@
 import ReactPlayer from "react-player";
 import { useState, useEffect } from "react";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Tv } from "lucide-react";
 
 interface VideoPlayerProps {
   url: string;
@@ -8,32 +8,43 @@ interface VideoPlayerProps {
 
 const VideoPlayer = ({ url }: VideoPlayerProps) => {
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isEmpty, setIsEmpty] = useState(!url);
 
-  // Reiniciar estado al cambiar de canal
   useEffect(() => {
     setIsLoading(true);
-    setError(false);
+    setError(null);
+    setIsEmpty(!url);
   }, [url]);
 
   const handleReady = () => {
     setIsLoading(false);
-    setError(false);
+    setError(null);
   };
 
   const handleError = (e: any) => {
     console.error("Error de ReactPlayer:", e);
     setIsLoading(false);
-    setError(true);
+    setError("El canal no está disponible o la conexión fue bloqueada (posible problema de CORS o canal caído).");
   };
 
   const handleBuffer = () => {
-    setIsLoading(true);
+    if (!error) setIsLoading(true);
   };
 
   const handleBufferEnd = () => {
     setIsLoading(false);
   };
+
+  if (isEmpty) {
+    return (
+      <div className="aspect-video w-full bg-black flex flex-col items-center justify-center text-white">
+        <Tv className="h-12 w-12 mb-4" />
+        <p className="text-lg font-semibold">Selecciona un canal</p>
+        <p className="text-sm text-gray-300">Elige un país y luego un canal de la lista.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative aspect-video w-full bg-black">
@@ -48,19 +59,24 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
         onError={handleError}
         onBuffer={handleBuffer}
         onBufferEnd={handleBufferEnd}
+        config={{
+          file: {
+            forceHLS: true,
+          },
+        }}
       />
       {isLoading && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white pointer-events-none">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Cargando...</span>
+          <span className="ml-2">Cargando canal...</span>
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 text-white pointer-events-none">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 text-white pointer-events-none p-4">
           <AlertTriangle className="h-10 w-10 text-red-500 mb-4" />
-          <p className="text-lg font-semibold">No se pudo cargar el canal</p>
-          <p className="text-sm text-gray-300 text-center px-4">
-            La transmisión puede no estar disponible o haber un problema de red.
+          <p className="text-lg font-semibold text-center mb-2">No se pudo cargar el canal</p>
+          <p className="text-sm text-gray-300 text-center">
+            {error}
           </p>
         </div>
       )}
