@@ -5,13 +5,19 @@ import VideoPlayer from "@/components/VideoPlayer";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Globe } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ApiChannel {
   name: string;
   logo: string;
   url: string;
+  is_geoblocked?: boolean;
   country: {
     code: string;
     name: string;
@@ -30,7 +36,6 @@ const fetchChannels = async (): Promise<ApiChannel[]> => {
   if (!response.ok) {
     throw new Error("La respuesta de la red no fue correcta");
   }
-  // Filtramos canales sin URL válida
   const channels = await response.json();
   return channels.filter((channel: ApiChannel) => channel.url);
 };
@@ -174,7 +179,17 @@ const LiveTV = () => {
                           className="w-12 h-12 mr-4 object-contain bg-gray-200 dark:bg-gray-800 rounded-md p-1"
                           onError={(e) => (e.currentTarget.style.display = 'none')}
                         />
-                        <span className="font-semibold">{channel.name}</span>
+                        <span className="font-semibold flex-grow">{channel.name}</span>
+                        {channel.is_geoblocked && (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Globe className="h-5 w-5 text-muted-foreground ml-2" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Este canal puede estar bloqueado en tu región.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
                       </CardContent>
                     </Card>
                   ))}
