@@ -1,5 +1,5 @@
 import ReactPlayer from "react-player";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, AlertTriangle } from "lucide-react";
 
 interface VideoPlayerProps {
@@ -11,17 +11,18 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
   const [error, setError] = useState(false);
 
   // Reiniciar estado al cambiar de canal
-  useState(() => {
+  useEffect(() => {
     setIsLoading(true);
     setError(false);
-  });
+  }, [url]);
 
   const handleReady = () => {
     setIsLoading(false);
     setError(false);
   };
 
-  const handleError = () => {
+  const handleError = (e: any) => {
+    console.error("Error de ReactPlayer:", e);
     setIsLoading(false);
     setError(true);
   };
@@ -47,11 +48,6 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
         onError={handleError}
         onBuffer={handleBuffer}
         onBufferEnd={handleBufferEnd}
-        config={{
-          file: {
-            forceHLS: true,
-          },
-        }}
       />
       {isLoading && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white pointer-events-none">
