@@ -10,22 +10,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
-// Lista de servidores extraída de tu configuración
 const SERVERS = [
   "http://kytv.xyz",
   "http://cdn-ky.com",
   "http://name-port.to"
 ];
 
-// Regla #2: Usar proxy CORS para saltar la seguridad del navegador
-const CORS_PROXY = "https://corsproxy.io/?";
+const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
   const [serverIndex, setServerIndex] = useState(0);
 
-  // Carga del Catálogo IPTV (VOD) directamente
   const { data: iptvData, isLoading } = useQuery({
     queryKey: ["xtreamVodCache"],
     queryFn: async () => {
@@ -38,10 +35,9 @@ const Movies = () => {
         creds: data.credentials
       };
     },
-    staleTime: 1000 * 60 * 60, // Cache de 1 hora
+    staleTime: 1000 * 60 * 60,
   });
 
-  // Filtrado local súper rápido (limitado a 150 para no colapsar el navegador)
   const filteredMovies = useMemo(() => {
     if (!iptvData?.streams) return [];
     
@@ -57,7 +53,7 @@ const Movies = () => {
 
   const handleSelectMovie = (movie: any) => {
     setSelectedMovie(movie);
-    setServerIndex(0); // Reiniciar al primer servidor
+    setServerIndex(0);
   };
 
   const handleNextServer = () => {
@@ -66,7 +62,6 @@ const Movies = () => {
     toast.success(`Cambiando al servidor: ${SERVERS[nextIndex]}`);
   };
 
-  // Generar URL dinámica con PROXY para evitar CORS
   const currentUrl = selectedMovie && iptvData?.creds
     ? `${CORS_PROXY}${encodeURIComponent(`${SERVERS[serverIndex]}/movie/${iptvData.creds.user}/${iptvData.creds.pass}/${selectedMovie.stream_id}.${selectedMovie.container_extension || 'mp4'}`)}`
     : null;
@@ -109,18 +104,7 @@ const Movies = () => {
           </div>
 
           <div className="p-8 flex flex-col md:flex-row gap-8 items-start">
-            {selectedMovie.stream_icon ? (
-              <img 
-                src={selectedMovie.stream_icon} 
-                alt={selectedMovie.name}
-                className="w-48 rounded-xl shadow-lg object-cover aspect-[2/3] bg-zinc-900"
-                onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
-              />
-            ) : (
-              <div className="w-48 aspect-[2/3] rounded-xl shadow-lg bg-zinc-900 flex items-center justify-center">
-                <Film className="h-12 w-12 text-zinc-700" />
-              </div>
-            )}
+            <ContentCard title={selectedMovie.name} imageUrl={selectedMovie.stream_icon} className="w-48 pointer-events-none" />
             
             <div className="flex-1">
               <h1 className="text-4xl font-black">{selectedMovie.name}</h1>
