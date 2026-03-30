@@ -5,18 +5,17 @@ import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
 import ContentCard from "@/components/ContentCard";
-import { Loader2, Search, ArrowLeft, Server, PlayCircle } from "lucide-react";
+import { Loader2, Search, ArrowLeft, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { findBestIptvMatch } from "@/lib/iptv-match";
-import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
-// Usamos un proxy CORS público para evitar errores de Mixed Content (HTTP en HTTPS)
-const CORS_PROXY = "https://corsproxy.io/?";
+// Proxy CORS opcional por si el navegador bloquea HTTP en HTTPS (Cleartext)
+const CORS_PROXY = "https://proxy.cors.sh/";
 
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
-  const [playMode, setPlayMode] = useState<"xtream" | "vidsrc" | null>(null);
   const [xtreamUrl, setXtreamUrl] = useState<string | null>(null);
 
   // 1. Carga de TMDB (Interfaz Visual)
@@ -48,64 +47,62 @@ const Movies = () => {
     staleTime: 1000 * 60 * 60, // Caché de 1 hora
   });
 
-  // 3. Lógica de Matching al hacer clic
+  // 3. Lógica de Matching Estricta (Solo Xtream)
   const handleSelectMovie = (movie: any) => {
     setSelectedMovie(movie);
+    setXtreamUrl(null); // Reiniciamos la URL
     
     if (iptvData?.streams && iptvData?.creds) {
       const match = findBestIptvMatch(movie.title, movie.release_date, iptvData.streams);
       
       if (match) {
-        // Construcción de la URL de Video
         const { server, user, pass } = iptvData.creds;
         const extension = match.container_extension || "mp4";
-        // Pasamos la URL por el proxy CORS para evitar bloqueos de Cleartext/Mixed Content
+        
+        // Construcción exacta del Link Real
         const rawUrl = `${server}/movie/${user}/${pass}/${match.stream_id}.${extension}`;
-        setXtreamUrl(`${CORS_PROXY}${encodeURIComponent(rawUrl)}`);
-        setPlayMode("xtream");
-        return;
+        
+        // LOGS DE CONTROL SOLICITADOS
+        console.log("====================================");
+        console.log("🎬 Película TMDB:", movie.title);
+        console.log("✅ Match en Xtream:", match.name);
+        console.log("🔑 Stream ID encontrado:", match.stream_id);
+        console.log("🔗 URL Final generada:", rawUrl);
+        console.log("====================================");
+
+        // Usamos el proxy para evitar el error de Mixed Content si el server es HTTP
+        setXtreamUrl(`${CORS_PROXY}${rawUrl}`);
+      } else {
+        console.warn("❌ Película no encontrada en el servidor premium:", movie.title);
+        toast.error("Esta película no está disponible en tu servidor premium actual.");
       }
+    } else {
+      toast.info("El catálogo premium aún se está sincronizando. Intenta en unos segundos.");
     }
-    
-    // Si no hay match o no ha cargado Xtream, vamos directo al respaldo
-    setPlayMode("vidsrc");
   };
 
   // Modo Reproductor
-  if (selectedMovie && playMode) {
+  if (selectedMovie) {
     return (
       <Layout>
         <div className="space-y-6 min-h-screen bg-zinc-950 text-white p-4 rounded-3xl">
           <div className="flex items-center justify-between">
             <button 
-              onClick={() => { setSelectedMovie(null); setPlayMode(null); setXtreamUrl(null); }}
+              onClick={() => { setSelectedMovie(null); setXtreamUrl(null); }}
               className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors p-2"
             >
               <ArrowLeft className="h-5 w-5" /> Volver al Catálogo
             </button>
-
-            {/* Botón de Respaldo Manual */}
-            {playMode === "xtream" && (
-              <Button 
-                variant="outline" 
-                className="bg-white/5 border-white/10 hover:bg-white/10 text-white"
-                onClick={() => setPlayMode("vidsrc")}
-              >
-                <Server className="mr-2 h-4 w-4" />
-                Ver en Servidor de Respaldo
-              </Button>
-            )}
           </div>
           
           <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl bg-black border border-white/5">
-            {playMode === "xtream" && xtreamUrl ? (
+            {xtreamUrl ? (
               <VideoPlayer url={xtreamUrl} />
             ) : (
-              <iframe
-                src={`https://vidsrc.to/embed/movie/${selectedMovie.id}`}
-                className="w-full h-full border-0"
-                allowFullScreen
-              />
+              <div className="flex flex-col items-center justify-center h-full text-zinc-500">
+                <AlertCircle className="h-12 w-12 mb-4 opacity-50" />
+                <p>Película no encontrada en el servidor premium.</p>
+              </div>
             )}
           </div>
 
@@ -119,10 +116,7 @@ const Movies = () => {
               <h1 className="text-4xl font-black">{selectedMovie.title}</h1>
               <div className="flex items-center gap-4 mt-2 text-zinc-400">
                 <span>{selectedMovie.release_date?.substring(0, 4)}</span>
-                <span className="flex items-center gap-1 text-primary">
-                  <PlayCircle className="h-4 w-4" /> 
-                  {playMode === "xtream" ? "Servidor Principal (Xtream)" : "Servidor de Respaldo (VidSrc)"}
-                </span>
+                <span className="text-primary font-bold">Servidor Premium (Xtream)</span>
               </div>
               <p className="text-zinc-300 mt-6 max-w-3xl leading-relaxed">
                 {selectedMovie.overview || "Sin sinopsis disponible."}

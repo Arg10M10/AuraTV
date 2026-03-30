@@ -33,12 +33,13 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
             file: {
               forceVideo: true,
               attributes: {
+                // Atributos nativos del elemento <video>
                 crossOrigin: "anonymous",
               },
-              // Configuración para evitar bloqueos de servidores IPTV
               hlsOptions: {
                 xhrSetup: function(xhr: any) {
-                  xhr.setRequestHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+                  // Forzamos el User-Agent para evitar bloqueos del servidor Xtream
+                  xhr.setRequestHeader('User-Agent', 'IPTVSmarters/1.0');
                 }
               }
             }
@@ -46,14 +47,14 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
         />
       ) : (
         <div className="flex items-center justify-center h-full text-white/20">
-          Esperando señal...
+          Esperando señal del servidor premium...
         </div>
       )}
 
       {isLoading && url && !hasError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-10">
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-          <p className="text-white font-bold tracking-widest text-sm uppercase">Conectando al Servidor...</p>
+          <p className="text-white font-bold tracking-widest text-sm uppercase">Conectando a Xtream Codes...</p>
         </div>
       )}
 
@@ -62,7 +63,7 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
           <AlertCircle className="h-12 w-12 text-destructive mb-4" />
           <h3 className="text-xl font-bold mb-2">Error de Reproducción</h3>
           <p className="text-muted-foreground text-sm max-w-xs">
-            El servidor bloqueó la conexión o el formato no es compatible. Intenta usar el servidor de respaldo.
+            El servidor rechazó la conexión. Verifica la consola para ver la URL generada.
           </p>
         </div>
       )}
