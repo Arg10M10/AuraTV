@@ -32,9 +32,13 @@ const Movies = () => {
   });
 
   const resolveUrlMutation = useMutation({
-    mutationFn: async (streamId: string) => {
+    mutationFn: async ({ streamId, extension }: { streamId: string, extension: string }) => {
       const { data, error } = await supabase.functions.invoke('xtream-proxy', {
-        body: { action: "get_vod_url", stream_id: streamId }
+        body: { 
+          action: "get_vod_url", 
+          stream_id: streamId,
+          container_extension: extension || 'mp4'
+        }
       });
       if (error) throw new Error(error.message);
       if (!data.finalUrl) throw new Error("La función no devolvió una URL final.");
@@ -62,7 +66,10 @@ const Movies = () => {
   const handleSelectMovie = (movie: any) => {
     setSelectedMovie(movie);
     setFinalVideoUrl(null); // Limpiamos la URL anterior
-    resolveUrlMutation.mutate(movie.stream_id); // Pedimos la nueva URL
+    resolveUrlMutation.mutate({ 
+      streamId: movie.stream_id, 
+      extension: movie.container_extension 
+    });
   };
   
   const handleGoBack = () => {

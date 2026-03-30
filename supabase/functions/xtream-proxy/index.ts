@@ -18,7 +18,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, stream_id } = await req.json()
+    const { action, stream_id, container_extension } = await req.json()
     const USER = "7882659395"
     const PASS = "2438687584"
 
@@ -30,7 +30,8 @@ serve(async (req) => {
     if (action === 'get_vod_url') {
       if (!stream_id) throw new Error("Se requiere stream_id para get_vod_url");
 
-      const initialUrl = `${SERVERS[0]}/movie/${USER}/${PASS}/${stream_id}.mp4`;
+      const extension = container_extension || 'mp4';
+      const initialUrl = `${SERVERS[0]}/movie/${USER}/${PASS}/${stream_id}.${extension}`;
       console.log(`[xtream-proxy] Resolviendo URL: ${initialUrl}`);
 
       const response = await fetch(initialUrl, {
@@ -42,7 +43,8 @@ serve(async (req) => {
       // La URL final está en la cabecera 'location' de la respuesta de redirección
       const finalUrl = response.headers.get('location');
       if (!finalUrl) {
-        throw new Error("No se encontró la URL de redirección. El servidor no redirigió.");
+        console.error(`[xtream-proxy] No se pudo redirigir desde ${initialUrl}. Estado: ${response.status}`);
+        throw new Error(`El servidor no redirigió para la URL inicial. Estado: ${response.status}`);
       }
       
       console.log(`[xtream-proxy] URL final resuelta: ${finalUrl}`);
