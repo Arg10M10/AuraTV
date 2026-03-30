@@ -53,7 +53,7 @@ export const useXtreamQuery = (action: "get_live_streams" | "get_live_categories
 
 export const getXtreamMovieUrl = (serverUrl: string, streamId: string | number, extension: string = 'mp4') => {
     if (!serverUrl) return "";
-    // Usamos la extensión real que viene del servidor (mkv, mp4, etc)
+    // USAMOS LA EXTENSIÓN ORIGINAL SIN ALTERARLA
     const videoUrl = `${serverUrl}/movie/${USER}/${PASS}/${streamId}.${extension}`;
     return createProxyUrl(videoUrl);
 }

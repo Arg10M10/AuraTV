@@ -7,6 +7,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Manejo de preflight CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -16,19 +17,22 @@ serve(async (req) => {
     const videoUrl = url.searchParams.get('url');
 
     if (!videoUrl) {
-      return new Response(JSON.stringify({ error: "URL requerida" }), {
+      return new Response(JSON.stringify({ error: "URL de video no proporcionada" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const range = req.headers.get('Range');
+    // Preparamos las cabeceras para la petición al servidor IPTV
     const headers = new Headers({
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': '*/*',
     });
-    
+
+    // IMPORTANTE: Reenviar la cabecera Range para permitir el "seeking" (adelantar/atrasar)
+    const range = req.headers.get('range');
     if (range) {
-      headers.set('Range', range);
+      headers.set('range', range);
     }
 
     const response = await fetch(videoUrl, { 
@@ -36,28 +40,31 @@ serve(async (req) => {
       redirect: 'follow'
     });
 
+    // Construimos las cabeceras de respuesta
     const responseHeaders = new Headers(corsHeaders);
     
-    // Pasamos todas las cabeceras del servidor original para máxima compatibilidad
+    // Mapeamos cabeceras críticas del servidor original
+    const criticalHeaders = ['content-type', 'content-length', 'accept-ranges', 'content-range'];
     response.headers.forEach((value, key) => {
-      if (['content-type', 'content-length', 'accept-ranges', 'content-range'].includes(key.toLowerCase())) {
+      if (criticalHeaders.includes(key.toLowerCase())) {
         responseHeaders.set(key, value);
       }
     });
 
-    // Si el servidor no envía content-type, ponemos uno genérico de video
-    if (!responseHeaders.has('content-type')) {
-      responseHeaders.set('content-type', 'video/mp4');
+    // Si es MKV y el servidor no envía el tipo correcto, lo forzamos para el navegador
+    if (videoUrl.toLowerCase().includes('.mkv') && !responseHeaders.has('content-type')) {
+      responseHeaders.set('content-type', 'video/x-matroska');
     }
 
+    // Retornamos el flujo de datos (stream) directamente
     return new Response(response.body, {
       status: response.status,
       headers: responseHeaders,
     });
 
   } catch (error) {
-    console.error("[video-proxy] Error:", error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error("[video-proxy] Error crítico:", error.message);
+    return new Response(JSON.stringify({ error: "Error en el túnel de video", details: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
