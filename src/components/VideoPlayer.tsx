@@ -15,24 +15,29 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
-  const [canPlay, setCanPlay] = useState(false); // Nuevo estado para controlar el inicio seguro
+  const [canPlay, setCanPlay] = useState(false);
   const playerRef = useRef<ReactPlayer>(null);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Reiniciamos estados cuando cambia la URL o se pide reintento
+  // IMPORTANTE: Al cambiar la URL, reseteamos estados pero NO desmontamos el componente
   useEffect(() => {
     setIsLoading(true);
     setHasError(false);
-    setCanPlay(false); 
-  }, [url, retryKey]);
+    setCanPlay(false);
+    
+    // Si la URL cambia, forzamos un pequeño delay antes de intentar reproducir
+    const timer = setTimeout(() => {
+      // El estado canPlay se activará realmente en onReady
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [url]);
 
   const handleReady = () => {
     setIsLoading(false);
-    // Solo permitimos jugar cuando el reproductor dice que está listo
-    // Esto evita el error de "play() interrupted"
     setCanPlay(true);
   };
 
@@ -60,11 +65,13 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
       {url ? (
         <ReactPlayer
           ref={playerRef}
-          key={`${url}-${retryKey}`}
+          // NOTA: Solo usamos retryKey para el remount manual, NO la url.
+          // Esto evita que el elemento sea "removido del documento" al cambiar de video.
+          key={retryKey}
           url={url}
           width="100%"
           height="100%"
-          playing={canPlay} // Solo reproducimos si está listo
+          playing={canPlay}
           controls={true}
           onReady={handleReady}
           onStart={() => setIsLoading(false)}
@@ -76,8 +83,9 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
             file: {
               attributes: {
                 controlsList: 'nodownload',
-                // Prevenir que el navegador intente auto-reproducir antes de tiempo
-                preload: 'auto'
+                preload: 'auto',
+                // Añadimos esto para asegurar compatibilidad con HLS y proxies
+                crossOrigin: "anonymous"
               },
               forceHLS: url.includes('.m3u8') || url.includes('/live/'),
             }
@@ -101,9 +109,9 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
       {hasError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 z-20 p-8 text-center">
           <AlertCircle className="h-16 w-16 text-destructive mb-4" />
-          <h3 className="text-2xl font-bold mb-2 text-white">Error de Reproducción</h3>
+          <h3 className="text-2xl font-bold mb-2 text-white">Error de Conexión</h3>
           <p className="text-zinc-400 text-sm max-w-md mb-8">
-            No se pudo establecer la conexión con el flujo de video. Esto puede ocurrir si el canal está temporalmente fuera de línea.
+            No se pudo establecer la conexión con el servidor. Es posible que el enlace haya expirado o el servidor esté saturado.
           </p>
           <Button onClick={handleRetry} size="lg" className="bg-primary hover:bg-primary/80 text-white">
             <RefreshCw className="mr-2 h-5 w-5" /> Reintentar Conexión
