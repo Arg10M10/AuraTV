@@ -9,10 +9,21 @@ export function proxyImage(url: string | null | undefined): string {
   if (!url) {
     return "/placeholder.svg";
   }
-  // Usamos un proxy de imágenes fiable para evitar problemas de contenido mixto (http en https).
-  if (url.startsWith('http://')) {
-    // weserv.nl requiere la URL sin el protocolo.
-    return `https://images.weserv.nl/?url=${url.substring(7)}&default=/placeholder.svg&w=400`;
+
+  // Si la URL ya es HTTPS y no necesita proxy, la dejamos tal cual
+  if (url.startsWith('https://')) {
+    return url;
   }
-  return url;
+
+  // Limpiamos la URL de espacios
+  const cleanUrl = url.trim();
+  
+  // Si empieza con http://, le quitamos el protocolo para el proxy weserv.nl
+  let sourceUrl = cleanUrl;
+  if (cleanUrl.startsWith('http://')) {
+    sourceUrl = cleanUrl.substring(7);
+  }
+
+  // Usamos weserv.nl que es muy fiable para saltar bloqueos de contenido mixto
+  return `https://images.weserv.nl/?url=${encodeURIComponent(sourceUrl)}&default=https://via.placeholder.com/400x600?text=No+Image&errorredirect=https://via.placeholder.com/400x600?text=Error`;
 }

@@ -29,8 +29,8 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
     setIsLoading(false);
   };
 
-  const handleError = (e: any, data?: any) => {
-    console.error("🔴 Error en ReactPlayer:", { error: e, data });
+  const handleError = (e: any) => {
+    console.error("🔴 Error en ReactPlayer:", e);
     setIsLoading(false);
     setHasError(true);
   };
@@ -58,12 +58,17 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
           playing={true}
           controls={true}
           onReady={handleReady}
+          onStart={() => setIsLoading(false)}
           onBuffer={() => setIsLoading(true)}
           onBufferEnd={() => setIsLoading(false)}
           onError={handleError}
           config={{
             file: {
-              forceHLS: url.includes('.m3u8'),
+              attributes: {
+                // Esto ayuda a evitar que propiedades de ReactPlayer se filtren al elemento de video
+                controlsList: 'nodownload'
+              },
+              forceHLS: url.includes('.m3u8') || url.includes('/live/'),
             }
           }}
         />
