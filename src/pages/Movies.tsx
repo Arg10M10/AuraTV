@@ -10,9 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { findBestIptvMatch } from "@/lib/iptv-match";
 import { toast } from "sonner";
 
-// Proxy CORS opcional por si el navegador bloquea HTTP en HTTPS (Cleartext)
-const CORS_PROXY = "https://proxy.cors.sh/";
-
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
@@ -31,7 +28,7 @@ const Movies = () => {
     },
   });
 
-  // 2. Carga Silenciosa del Catálogo IPTV (Caché en background)
+  // 2. Carga Silenciosa del Catálogo IPTV
   const { data: iptvData } = useQuery({
     queryKey: ["xtreamVodCache"],
     queryFn: async () => {
@@ -44,13 +41,13 @@ const Movies = () => {
         creds: data.credentials
       };
     },
-    staleTime: 1000 * 60 * 60, // Caché de 1 hora
+    staleTime: 1000 * 60 * 60,
   });
 
-  // 3. Lógica de Matching Estricta (Solo Xtream)
+  // 3. Lógica de Matching y Debug Profundo
   const handleSelectMovie = (movie: any) => {
     setSelectedMovie(movie);
-    setXtreamUrl(null); // Reiniciamos la URL
+    setXtreamUrl(null);
     
     if (iptvData?.streams && iptvData?.creds) {
       const match = findBestIptvMatch(movie.title, movie.release_date, iptvData.streams);
@@ -59,29 +56,32 @@ const Movies = () => {
         const { server, user, pass } = iptvData.creds;
         const extension = match.container_extension || "mp4";
         
-        // Construcción exacta del Link Real
+        // Construcción de la URL Directa (SIN PROXY)
         const rawUrl = `${server}/movie/${user}/${pass}/${match.stream_id}.${extension}`;
         
-        // LOGS DE CONTROL SOLICITADOS
-        console.log("====================================");
-        console.log("🎬 Película TMDB:", movie.title);
-        console.log("✅ Match en Xtream:", match.name);
-        console.log("🔑 Stream ID encontrado:", match.stream_id);
-        console.log("🔗 URL Final generada:", rawUrl);
-        console.log("====================================");
+        // ==========================================
+        // DEBUG PROFUNDO EN CONSOLA
+        // ==========================================
+        console.log("🔴 DEBUG PROFUNDO - XTREAM CODES 🔴");
+        console.log("1. Servidor (Host:Puerto):", server);
+        console.log("2. Usuario:", user);
+        console.log("3. Password:", pass ? "***OCULTO***" : "VACÍO");
+        console.log("4. Stream ID:", match.stream_id);
+        console.log("5. Extensión:", extension);
+        console.log("▶️ URL FINAL A REPRODUCIR:", rawUrl);
+        console.log("==========================================");
 
-        // Usamos el proxy para evitar el error de Mixed Content si el server es HTTP
-        setXtreamUrl(`${CORS_PROXY}${rawUrl}`);
+        // Usamos la URL directa. El proxy rompe el streaming de video.
+        setXtreamUrl(rawUrl);
       } else {
-        console.warn("❌ Película no encontrada en el servidor premium:", movie.title);
-        toast.error("Esta película no está disponible en tu servidor premium actual.");
+        console.warn("❌ Película no encontrada en Xtream:", movie.title);
+        toast.error("Esta película no está disponible en tu servidor premium.");
       }
     } else {
-      toast.info("El catálogo premium aún se está sincronizando. Intenta en unos segundos.");
+      toast.info("Sincronizando catálogo premium...");
     }
   };
 
-  // Modo Reproductor
   if (selectedMovie) {
     return (
       <Layout>
