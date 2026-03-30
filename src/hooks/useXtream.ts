@@ -43,25 +43,15 @@ export const useXtreamQuery = (action: string) => {
 };
 
 /**
- * Genera la URL directa del video (ahora por defecto .mkv)
+ * Genera la URL directa del video forzando SIEMPRE .mkv para máxima calidad
  */
-export const getXtreamMovieUrl = (serverUrl: string, streamId: string | number, extension: string = 'mkv') => {
+export const getXtreamMovieUrl = (serverUrl: string, streamId: string | number) => {
     if (!serverUrl) return "";
-    // Forzamos mkv si la extensión viene vacía o es mp4 y el usuario prefiere mkv original
-    const ext = extension || 'mkv';
-    return `${serverUrl}/movie/${USER}/${PASS}/${streamId}.${ext}`;
+    // Ignoramos cualquier otra extensión y forzamos .mkv original
+    return `${serverUrl}/movie/${USER}/${PASS}/${streamId}.mkv`;
 }
 
 export const getXtreamLiveUrl = (serverUrl: string, streamId: string | number) => {
     if (!serverUrl) return "";
     return `${serverUrl}/live/${USER}/${PASS}/${streamId}.ts`;
 }
-
-/**
- * Genera una URL de proxy para saltar bloqueos de red en Android/Webview
- */
-export const getVideoProxyUrl = (originalUrl: string) => {
-  if (!originalUrl) return "";
-  const projectRef = "vspullgchtzqgdclqjaw";
-  return `https://${projectRef}.supabase.co/functions/v1/video-proxy?url=${encodeURIComponent(originalUrl)}`;
-};

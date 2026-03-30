@@ -29,12 +29,8 @@ const Movies = () => {
   }, [iptvData, searchQuery]);
 
   if (selectedMovie) {
-    // Forzamos el uso de la extensión original o .mkv si no se especifica
-    const videoUrl = getXtreamMovieUrl(
-      workingServer, 
-      selectedMovie.stream_id, 
-      selectedMovie.container_extension || 'mkv'
-    );
+    // Forzamos SIEMPRE .mkv para la URL
+    const videoUrl = getXtreamMovieUrl(workingServer, selectedMovie.stream_id);
 
     return (
       <Layout>
@@ -49,7 +45,7 @@ const Movies = () => {
              <h1 className="text-3xl font-black">{selectedMovie.name}</h1>
              <div className="flex gap-4 mt-3">
                <span className="bg-primary text-primary-foreground px-3 py-1 rounded-md text-xs font-black">4K ORIGINAL</span>
-               <span className="text-zinc-500 text-sm font-medium">Formato: {selectedMovie.container_extension || 'mkv'}</span>
+               <span className="text-zinc-500 text-sm font-medium uppercase">Formato: MKV</span>
              </div>
           </div>
         </div>
@@ -64,13 +60,13 @@ const Movies = () => {
           <div className="space-y-1">
             <h1 className="text-5xl font-black italic">AURA <span className="text-primary not-italic">CINE</span></h1>
             <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest">
-              {iptvData ? `${iptvData.length} Títulos disponibles` : "Cargando biblioteca..."}
+              {iptvData ? `${iptvData.length} Títulos en MKV 4K` : "Cargando biblioteca..."}
             </p>
           </div>
           <div className="bg-white/5 p-4 rounded-2xl flex items-center gap-3 border border-white/10 w-full md:w-96 focus-within:ring-2 focus-within:ring-primary transition-all">
             <Search className="h-5 w-5 text-white/40" />
             <input 
-              placeholder="Buscar por nombre..." 
+              placeholder="Buscar película..." 
               className="bg-transparent border-none outline-none text-white w-full placeholder:text-zinc-600"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -81,14 +77,14 @@ const Movies = () => {
         {isLoadingList ? (
           <div className="flex flex-col items-center justify-center py-32 space-y-4">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-zinc-500 animate-pulse font-bold uppercase tracking-tighter text-xs">Sincronizando catálogo MKV...</p>
+            <p className="text-zinc-500 animate-pulse font-bold uppercase tracking-tighter text-xs">Sincronizando MKV Directo...</p>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-32 space-y-6 text-center">
             <AlertCircle className="h-16 w-16 text-destructive" />
             <div className="space-y-2">
-              <p className="text-xl font-bold">Error de Servidor</p>
-              <p className="text-zinc-500 text-sm max-w-md">No se pudo obtener la lista. Verifica tu conexión.</p>
+              <p className="text-xl font-bold">Error de Conexión</p>
+              <p className="text-zinc-500 text-sm max-w-md">No se pudo conectar con el servidor Xtream.</p>
             </div>
             <Button onClick={() => refetch()} variant="outline" className="rounded-xl border-white/10">
               Reintentar
