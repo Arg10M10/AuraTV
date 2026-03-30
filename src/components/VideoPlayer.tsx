@@ -1,108 +1,63 @@
+"use client";
+
 import ReactPlayer from "react-player";
-import { useState, useEffect, useRef } from "react";
-import { Loader2, AlertTriangle, Tv } from "lucide-react";
+import { useState } from "react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 interface VideoPlayerProps {
   url: string;
 }
 
-const LOADING_TIMEOUT = 20000; // 20 segundos
-
 const VideoPlayer = ({ url }: VideoPlayerProps) => {
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isEmpty, setIsEmpty] = useState(!url);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const clearTimeoutRef = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  };
-
-  useEffect(() => {
-    setIsLoading(true);
-    setError(null);
-    setIsEmpty(!url);
-    clearTimeoutRef();
-
-    if (url) {
-      timeoutRef.current = setTimeout(() => {
-        if (isLoading) {
-          setError("El canal tardó demasiado en responder. Puede que esté caído o bloqueado.");
-          setIsLoading(false);
-        }
-      }, LOADING_TIMEOUT);
-    }
-
-    return () => {
-      clearTimeoutRef();
-    };
-  }, [url, isLoading]);
-
-  const handleReady = () => {
-    clearTimeoutRef();
-    setIsLoading(false);
-    setError(null);
-  };
-
-  const handleError = (e: any) => {
-    clearTimeoutRef();
-    console.error("Error de ReactPlayer:", e);
-    setIsLoading(false);
-    setError("El canal no está disponible o la conexión fue bloqueada (posible problema de CORS o canal caído).");
-  };
-
-  const handleBuffer = () => {
-    if (!error) setIsLoading(true);
-  };
-
-  const handleBufferEnd = () => {
-    setIsLoading(false);
-  };
-
-  if (isEmpty) {
-    return (
-      <div className="aspect-video w-full bg-black flex flex-col items-center justify-center text-white">
-        <Tv className="h-12 w-12 mb-4" />
-        <p className="text-lg font-semibold">Selecciona un canal</p>
-        <p className="text-sm text-gray-300">Elige un país y luego un canal de la lista.</p>
-      </div>
-    );
-  }
+  const [hasError, setHasError] = useState(false);
 
   return (
-    <div className="relative aspect-video w-full bg-black">
-      <ReactPlayer
-        url={url}
-        controls
-        playing
-        width="100%"
-        height="100%"
-        className="absolute top-0 left-0"
-        onReady={handleReady}
-        onError={handleError}
-        onBuffer={handleBuffer}
-        onBufferEnd={handleBufferEnd}
-        config={{
-          file: {
-            forceHLS: true,
-          },
-        }}
-      />
-      {isLoading && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white pointer-events-none">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Cargando canal...</span>
+    <div className="relative w-full h-full bg-black group">
+      {url ? (
+        <ReactPlayer
+          url={url}
+          controls
+          playing
+          width="100%"
+          height="100%"
+          onReady={() => setIsLoading(false)}
+          onBuffer={() => setIsLoading(true)}
+          onBufferEnd={() => setIsLoading(false)}
+          onError={() => {
+            setIsLoading(false);
+            setHasError(true);
+          }}
+          config={{
+            file: {
+              attributes: {
+                // Cabecera sugerida para IPTV Smarters compatibility
+                'headers': {
+                  'User-Agent': 'IPTVSmarters/1.0'
+                }
+              }
+            }
+          }}
+        />
+      ) : (
+        <div className="flex items-center justify-center h-full text-white/20">
+          Esperando señal...
         </div>
       )}
-      {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 text-white pointer-events-none p-4">
-          <AlertTriangle className="h-10 w-10 text-red-500 mb-4" />
-          <p className="text-lg font-semibold text-center mb-2">No se pudo cargar el canal</p>
-          <p className="text-sm text-gray-300 text-center">
-            {error}
+
+      {isLoading && url && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm z-10">
+          <Loader2 className="h-16 w-16 animate-spin text-white/80 mb-4" />
+          <p className="text-white font-bold tracking-widest text-sm uppercase">Conectando con Aura Server...</p>
+        </div>
+      )}
+
+      {hasError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 z-20 p-8 text-center">
+          <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+          <h3 className="text-xl font-bold mb-2">Error de Stream</h3>
+          <p className="text-muted-foreground text-sm max-w-xs">
+            El enlace directo no respondió. Esto puede deberse a restricciones del servidor o formato no soportado.
           </p>
         </div>
       )}
