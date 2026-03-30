@@ -1,9 +1,10 @@
 # Configuración Nativa de Android (Aura TV)
 
-Para que el CDN no bloquee los videos, debes aplicar estos cambios en Android Studio:
+Para que el CDN no bloquee los videos en tu app final, debes aplicar estos 3 cambios en Android Studio:
 
-## 1. Habilitar User-Agent Personalizado (¡CRÍTICO!)
-Abre `android/app/src/main/java/com/auratv/app/MainActivity.java` y configura el WebView:
+## 1. Habilitar User-Agent Personalizado (¡LO MÁS IMPORTANTE!)
+El servidor `limitedcdn.com` solo deja pasar a apps que se identifiquen como reproductores. 
+Abre `android/app/src/main/java/com/auratv/app/MainActivity.java` y añade este código:
 
 ```java
 import android.webkit.WebSettings;
@@ -14,7 +15,7 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onResume() {
     super.onResume();
-    // Inyecta el User-Agent que pide el CDN para toda la app
+    // Esto hace que toda tu app parezca un reproductor legal ante los CDNs
     WebView webView = (WebView) this.getBridge().getWebView();
     WebSettings settings = webView.getSettings();
     settings.setUserAgentString("IPTVSmarters/1.0.0");
@@ -23,29 +24,16 @@ public class MainActivity extends BridgeActivity {
 ```
 
 ## 2. Habilitar Tráfico HTTP (Cleartext)
-Abre `android/app/src/main/AndroidManifest.xml`:
+IPTV usa muchos links `http`. Android los bloquea por defecto.
+Abre `android/app/src/main/AndroidManifest.xml` y añade:
 
 ```xml
 <application
     ...
-    android:usesCleartextTraffic="true"
-    android:networkSecurityConfig="@xml/network_security_config">
+    android:usesCleartextTraffic="true">
 ```
 
-## 3. Archivo de Seguridad de Red
-Crea `android/app/src/main/res/xml/network_security_config.xml`:
-
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-    <base-config cleartextTrafficPermitted="true">
-        <trust-anchors>
-            <certificates src="system" />
-        </trust-anchors>
-    </base-config>
-</network-security-config>
-```
-
-## 4. Sincronizar Cambios
+## 3. Sincronizar con Capacitor
+Cada vez que cambies el código web, corre esto para que Android se entere:
 ```bash
 npx cap sync android
