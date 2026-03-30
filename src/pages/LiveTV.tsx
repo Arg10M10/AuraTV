@@ -4,12 +4,12 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
-import XtreamForm from "@/components/XtreamForm";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Loader2, Globe, Tv, Settings2, LogOut } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Loader2, Globe, Tv, ShieldCheck } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Select,
   SelectContent,
@@ -17,165 +17,70 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { showSuccess, showError } from "@/utils/toast";
 
-// Interfaces para la API Pública e Xtream
 interface MergedChannel {
   id: string | number;
   name: string;
   logo: string;
   url: string;
   country: string;
-  categories: string[];
-}
-
-interface XtreamConfig {
-  server: string;
-  user: string;
-  pass: string;
 }
 
 const CORS_PROXY = "https://proxy.cors.sh/";
 
-const fetchIptvOrgData = async (): Promise<MergedChannel[]> => {
-  const [channelsRes, streamsRes, countriesRes, categoriesRes] = await Promise.all([
-    fetch("https://iptv-org.github.io/api/channels.json"),
-    fetch("https://iptv-org.github.io/api/streams.json"),
-    fetch("https://iptv-org.github.io/api/countries.json"),
-    fetch("https://iptv-org.github.io/api/categories.json"),
-  ]);
-
-  const channels = await channelsRes.json();
-  const streams = await streamsRes.json();
-  const countries = await countriesRes.json();
-  const categories = await categoriesRes.json();
-
-  const streamsMap = new Map();
-  for (const stream of streams) {
-    if (!streamsMap.has(stream.channel) || stream.status === 'online') {
-      streamsMap.set(stream.channel, stream);
-    }
-  }
-
-  const countriesMap = new Map(countries.map((c: any) => [c.code, c.name]));
-  const categoriesMap = new Map(categories.map((c: any) => [c.id, c.name]));
-
-  return channels
-    .filter((c: any) => !c.is_nsfw && streamsMap.has(c.id))
-    .map((c: any) => {
-      const stream = streamsMap.get(c.id);
-      return {
-        id: c.id,
-        name: c.name,
-        logo: c.logo || "/placeholder.svg",
-        url: stream.url,
-        country: countriesMap.get(c.country) || c.country || "Varios",
-        categories: (c.categories || []).map((id: string) => categoriesMap.get(id) || id),
-      };
-    });
-};
-
 const LiveTV = () => {
-  const [activeTab, setActiveTab] = useState("public");
+  const [activeTab, setActiveTab] = useState("xtream"); // Xtream por defecto
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [currentChannel, setCurrentChannel] = useState<MergedChannel | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [xtreamConfig, setXtreamConfig] = useState<XtreamConfig | null>(null);
 
-  // Cargar configuración guardada
-  useEffect(() => {
-    const saved = localStorage.getItem("xtream_config");
-    if (saved) {
-      setXtreamConfig(JSON.parse(saved));
-      setActiveTab("xtream");
-    }
-  }, []);
-
-  const handleXtreamLogin = (server: string, user: string, pass: string) => {
-    // Normalizar URL del servidor
-    const cleanServer = server.replace(/\/$/, "");
-    const config = { server: cleanServer, user, pass };
-    setXtreamConfig(config);
-    localStorage.setItem("xtream_config", JSON.stringify(config));
-    showSuccess("Conectado a Xtream Codes");
-  };
-
-  const handleLogout = () => {
-    setXtreamConfig(null);
-    localStorage.removeItem("xtream_config");
-    setSelectedGroup(null);
-    setCurrentChannel(null);
-    showSuccess("Sesión cerrada");
-  };
-
-  // Query para canales públicos
-  const { data: publicChannels, isLoading: loadingPublic } = useQuery({
-    queryKey: ["iptvOrgChannels"],
-    queryFn: fetchIptvOrgData,
-    enabled: activeTab === "public"
-  });
-
-  // Query para canales Xtream
-  const { data: xtreamData, isLoading: loadingXtream } = useQuery({
-    queryKey: ["xtreamChannels", xtreamConfig],
+  // Query para canales Xtream usando la Edge Function
+  const { data: xtreamResult, isLoading: loadingXtream, error: xtreamError } = useQuery({
+    queryKey: ["xtreamData"],
     queryFn: async () => {
-      if (!xtreamConfig) return null;
-      const { server, user, pass } = xtreamConfig;
-      
-      const baseUrl = `${CORS_PROXY}${server}/player_api.php?username=${user}&password=${pass}`;
-      
+      // Obtenemos categorías y canales usando la función de Supabase
+      const fetchFromProxy = async (action: string) => {
+        const { data, error } = await supabase.functions.invoke('xtream-proxy', {
+          body: { action }
+        });
+        if (error) throw error;
+        return data;
+      };
+
       const [catsRes, streamsRes] = await Promise.all([
-        fetch(`${baseUrl}&action=get_live_categories`),
-        fetch(`${baseUrl}&action=get_live_streams`)
+        fetchFromProxy("get_live_categories"),
+        fetchFromProxy("get_live_streams")
       ]);
 
-      const categories = await catsRes.json();
-      const streams = await streamsRes.json();
-
-      return { categories, streams };
+      return { 
+        categories: catsRes.data, 
+        streams: streamsRes.data,
+        creds: catsRes.credentials // Obtenemos las credenciales resueltas por la función
+      };
     },
-    enabled: !!xtreamConfig && activeTab === "xtream"
+    staleTime: 1000 * 60 * 30, // 30 minutos
   });
 
-  // Procesamiento de datos para la UI
-  const categories = useMemo(() => {
-    if (activeTab === "public") {
-      if (!publicChannels) return [];
-      return Array.from(new Set(publicChannels.flatMap((c) => c.categories))).sort();
-    } else {
-      return xtreamData?.categories?.map((c: any) => c.category_name).sort() || [];
-    }
-  }, [activeTab, publicChannels, xtreamData]);
-
+  // Procesamiento de datos para la UI de Xtream
   const filteredGroups = useMemo(() => {
-    if (activeTab === "public") {
-      if (!publicChannels) return [];
-      const filtered = publicChannels.filter(c => selectedCategory === "all" || c.categories.includes(selectedCategory));
-      const grouped = filtered.reduce((acc, c) => {
-        if (!acc[c.country]) acc[c.country] = { name: c.country, channels: [] };
-        acc[c.country].channels.push(c);
-        return acc;
-      }, {} as any);
-      return Object.values(grouped).sort((a: any, b: any) => a.name.localeCompare(b.name));
-    } else {
-      if (!xtreamData) return [];
-      const cats = xtreamData.categories || [];
-      return cats.map((cat: any) => ({
-        name: cat.category_name,
-        id: cat.category_id,
-        channels: xtreamData.streams
-          .filter((s: any) => s.category_id === cat.category_id)
-          .map((s: any) => ({
-            id: s.stream_id,
-            name: s.name,
-            logo: s.stream_icon || "/placeholder.svg",
-            url: `${xtreamConfig?.server}/live/${xtreamConfig?.user}/${xtreamConfig?.pass}/${s.stream_id}.m3u8`,
-            country: cat.category_name,
-            categories: [cat.category_name]
-          }))
-      })).filter((g: any) => g.channels.length > 0);
-    }
-  }, [activeTab, publicChannels, xtreamData, selectedCategory, xtreamConfig]);
+    if (!xtreamResult) return [];
+    const { categories, streams, creds } = xtreamResult;
+    
+    return categories.map((cat: any) => ({
+      name: cat.category_name,
+      id: cat.category_id,
+      channels: streams
+        .filter((s: any) => s.category_id === cat.category_id)
+        .map((s: any) => ({
+          id: s.stream_id,
+          name: s.name,
+          logo: s.stream_icon || "/placeholder.svg",
+          // Construimos la URL de video con las credenciales seguras
+          url: `${creds.server}/live/${creds.user}/${creds.pass}/${s.stream_id}.m3u8`,
+          country: cat.category_name
+        }))
+    })).filter((g: any) => g.channels.length > 0);
+  }, [xtreamResult]);
 
   const activeChannels = useMemo(() => {
     if (!selectedGroup) return [];
@@ -183,35 +88,29 @@ const LiveTV = () => {
     return group?.channels || [];
   }, [selectedGroup, filteredGroups]);
 
-  const isLoading = activeTab === "public" ? loadingPublic : loadingXtream;
-
   return (
     <Layout>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col space-y-6">
+      <div className="flex flex-col space-y-6">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <h1 className="text-3xl font-bold">Televisión en Vivo</h1>
-          <div className="flex items-center gap-4">
-            <TabsList className="grid w-[300px] grid-cols-2">
-              <TabsTrigger value="public" className="flex items-center gap-2">
-                <Globe className="h-4 w-4" /> Públicos
-              </TabsTrigger>
-              <TabsTrigger value="xtream" className="flex items-center gap-2">
-                <Settings2 className="h-4 w-4" /> Xtream
-              </TabsTrigger>
-            </TabsList>
-            {activeTab === "xtream" && xtreamConfig && (
-              <Button variant="outline" size="icon" onClick={handleLogout} title="Cerrar sesión">
-                <LogOut className="h-4 w-4" />
-              </Button>
-            )}
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold">TV Familiar</h1>
+            <div className="flex items-center gap-1 bg-green-500/10 text-green-600 px-2 py-1 rounded-md text-xs font-bold border border-green-200">
+              <ShieldCheck className="h-3 w-3" /> CONECTADO
+            </div>
           </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[300px]">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="xtream">Canales Privados</TabsTrigger>
+              <TabsTrigger value="public">Públicos</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center justify-between bg-muted/30 p-4 rounded-lg">
               <h2 className="text-xl font-semibold truncate">
-                {currentChannel?.name || "Selecciona un canal"}
+                {currentChannel?.name || "Selecciona un canal para empezar"}
               </h2>
               {currentChannel && (
                 <span className="text-sm bg-primary/10 text-primary px-3 py-1 rounded-full font-medium">
@@ -220,6 +119,7 @@ const LiveTV = () => {
               )}
             </div>
             <Card className="overflow-hidden border-2 shadow-xl bg-black">
+              {/* Usamos el proxy solo para el video si hay problemas de CORS */}
               <VideoPlayer 
                 url={currentChannel ? `${CORS_PROXY}${currentChannel.url}` : ""} 
               />
@@ -227,45 +127,37 @@ const LiveTV = () => {
           </div>
 
           <div className="space-y-4">
-            {isLoading ? (
+            {loadingXtream ? (
               <div className="flex h-64 flex-col items-center justify-center space-y-4">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p>Cargando lista...</p>
+                <p>Sincronizando con el servidor...</p>
               </div>
-            ) : activeTab === "xtream" && !xtreamConfig ? (
-              <XtreamForm onLogin={handleXtreamLogin} />
+            ) : xtreamError ? (
+              <Card className="border-destructive">
+                <CardContent className="p-6 text-center">
+                  <p className="text-destructive font-bold">Error de conexión</p>
+                  <p className="text-sm text-muted-foreground mt-2">No se pudo acceder a los canales. Revisa el secret XTREAM_PASSWORD en Supabase.</p>
+                </CardContent>
+              </Card>
             ) : (
               <div className="space-y-4">
                 {!selectedGroup ? (
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-bold flex items-center gap-2">
-                        <Tv className="h-4 w-4" /> {activeTab === "public" ? "Países" : "Categorías"}
-                      </h3>
-                      {activeTab === "public" && (
-                        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                          <SelectTrigger className="w-[140px]">
-                            <SelectValue placeholder="Filtro" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Todas</SelectItem>
-                            {categories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
+                    <h3 className="font-bold flex items-center gap-2">
+                      <Tv className="h-4 w-4" /> Categorías Disponibles
+                    </h3>
                     <ScrollArea className="h-[60vh] rounded-md border p-4 bg-card">
                       <div className="grid gap-2">
                         {filteredGroups.map((group: any) => (
                           <Button
-                            key={group.id || group.name}
+                            key={group.id}
                             variant="outline"
                             className="justify-between h-auto py-4 px-6 hover:bg-primary hover:text-primary-foreground transition-all group"
-                            onClick={() => setSelectedGroup(group.id || group.name)}
+                            onClick={() => setSelectedGroup(group.id)}
                           >
                             <span className="font-semibold text-left">{group.name}</span>
                             <span className="text-xs opacity-60 group-hover:opacity-100">
-                              {group.channels.length}
+                              {group.channels.length} canales
                             </span>
                           </Button>
                         ))}
@@ -279,12 +171,12 @@ const LiveTV = () => {
                         <ArrowLeft className="h-5 w-5" />
                       </Button>
                       <h3 className="font-bold truncate">
-                        {filteredGroups.find((g: any) => (g.id || g.name) === selectedGroup)?.name}
+                        {filteredGroups.find((g: any) => g.id === selectedGroup)?.name}
                       </h3>
                     </div>
                     <ScrollArea className="h-[60vh] rounded-md border p-4 bg-card">
                       <div className="grid gap-3">
-                        {activeChannels.map((channel: MergedChannel) => (
+                        {activeChannels.map((channel: any) => (
                           <Card
                             key={channel.id}
                             className={`cursor-pointer hover:border-primary transition-all border-2 ${
@@ -313,7 +205,7 @@ const LiveTV = () => {
             )}
           </div>
         </div>
-      </Tabs>
+      </div>
     </Layout>
   );
 };
