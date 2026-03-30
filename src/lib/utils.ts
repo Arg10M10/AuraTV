@@ -5,25 +5,24 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function proxyImage(url: string | null | undefined): string {
-  if (!url) {
-    return "/placeholder.svg";
-  }
+/**
+ * Filtro de imágenes: Solo permite posters de TMDB.
+ * Bloquea IPs directas y URLs lentas de proveedores para liberar ancho de banda.
+ */
+export function getCleanPoster(url: string | null | undefined): string {
+  if (!url) return "/placeholder.svg";
 
-  // Si la URL ya es HTTPS y no necesita proxy, la dejamos tal cual
-  if (url.startsWith('https://')) {
+  // Solo aceptamos imágenes de TMDB (son las más rápidas y seguras)
+  if (url.includes('image.tmdb.org')) {
     return url;
   }
 
-  // Limpiamos la URL de espacios
-  const cleanUrl = url.trim();
-  
-  // Si empieza con http://, le quitamos el protocolo para el proxy weserv.nl
-  let sourceUrl = cleanUrl;
-  if (cleanUrl.startsWith('http://')) {
-    sourceUrl = cleanUrl.substring(7);
+  // Detectamos si es una IP directa (ej: http://185.x.x.x/...)
+  const ipPattern = /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
+  if (ipPattern.test(url)) {
+    return "/placeholder.svg"; // Bloqueo preventivo
   }
 
-  // Usamos weserv.nl que es muy fiable para saltar bloqueos de contenido mixto
-  return `https://images.weserv.nl/?url=${encodeURIComponent(sourceUrl)}&default=https://via.placeholder.com/400x600?text=No+Image&errorredirect=https://via.placeholder.com/400x600?text=Error`;
+  // Por defecto, si no es TMDB, preferimos no cargarla para no saturar el log
+  return "/placeholder.svg";
 }

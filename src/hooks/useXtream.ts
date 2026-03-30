@@ -1,60 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-// Tus 3 servidores configurados para redundancia
-const SERVERS = [
-  "http://kytv.xyz",
-  "http://cdn-ky.com",
-  "http://name-port.to"
-];
-
+const SERVER = "http://kytv.xyz";
 const USER = "7882659395";
 const PASS = "2438687584";
 
 export const xtreamApiRequest = async (action: string) => {
-  let lastError: string = "";
-
-  for (const server of SERVERS) {
-    try {
-      console.log(`[useXtream] Probando servidor: ${server}...`);
-      const { data, error } = await supabase.functions.invoke('xtream-proxy', {
-        body: { server, action },
-      });
-
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
-      
-      return { data, workingServer: server };
-
-    } catch (err: any) {
-      console.warn(`[useXtream] ${server} falló:`, err.message);
-      lastError = err.message;
-    }
-  }
-
-  throw new Error(lastError || "Todos los servidores fallaron. Revisa tu conexión.");
+  const { data, error } = await supabase.functions.invoke('xtream-proxy', {
+    body: { server: SERVER, action },
+  });
+  if (error || data?.error) throw new Error(error?.message || data?.error);
+  return { data, workingServer: SERVER };
 };
 
 export const useXtreamQuery = (action: string) => {
   return useQuery({
     queryKey: ["xtreamData", action],
     queryFn: () => xtreamApiRequest(action),
-    staleTime: 1000 * 60 * 30, // 30 minutos de cache
-    retry: 1,
+    staleTime: 1000 * 60 * 60,
   });
 };
 
-export const getXtreamMovieUrl = (serverUrl: string, streamId: string | number) => {
-    if (!serverUrl) return "";
-    return `${serverUrl}/movie/${USER}/${PASS}/${streamId}.mkv`;
-}
-
-export const getXtreamSeriesUrl = (serverUrl: string, streamId: string | number) => {
-    if (!serverUrl) return "";
-    return `${serverUrl}/series/${USER}/${PASS}/${streamId}.mkv`;
-}
-
-export const getXtreamLiveUrl = (serverUrl: string, streamId: string | number) => {
-    if (!serverUrl) return "";
-    return `${serverUrl}/live/${USER}/${PASS}/${streamId}.ts`;
-}
+// URLs DIRECTAS: Sin transformaciones, directas al servidor kytv.xyz
+export const getXtreamMovieUrl = (server: string, id: any) => `${server}/movie/${USER}/${PASS}/${id}.mkv`;
+export const getXtreamSeriesUrl = (server: string, id: any) => `${server}/series/${USER}/${PASS}/${id}.mkv`;
+export const getXtreamLiveUrl = (server: string, id: any) => `${server}/live/${USER}/${PASS}/${id}.ts`;
