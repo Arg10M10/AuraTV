@@ -1,7 +1,13 @@
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-const CORS_PROXY = "https://api.allorigins.win/raw?url=";
+const SUPABASE_PROJECT_ID = "vspullgchtzqgdclqjaw";
+
+const createProxyUrl = (videoUrl: string) => {
+  const proxy = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/video-proxy`;
+  return `${proxy}?url=${encodeURIComponent(videoUrl)}`;
+}
+
 const SERVERS = [
   "http://kytv.xyz",
   "http://cdn-ky.com",
@@ -53,11 +59,11 @@ export const getXtreamMovieUrl = (serverUrl: string, streamId: string | number, 
     if (!serverUrl) return "";
     const finalExtension = extension === 'mkv' ? 'ts' : (extension || 'mp4');
     const videoUrl = `${serverUrl}/movie/${USER}/${PASS}/${streamId}.${finalExtension}`;
-    return `${CORS_PROXY}${encodeURIComponent(videoUrl)}`;
+    return createProxyUrl(videoUrl);
 }
 
 export const getXtreamLiveUrl = (serverUrl: string, streamId: string | number) => {
     if (!serverUrl) return "";
     const videoUrl = `${serverUrl}/live/${USER}/${PASS}/${streamId}.m3u8`;
-    return `${CORS_PROXY}${encodeURIComponent(videoUrl)}`;
+    return createProxyUrl(videoUrl);
 }

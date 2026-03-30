@@ -23,8 +23,33 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
     setIsLoading(false);
   };
 
-  const handleError = (e: any) => {
-    console.error("🔴 Error en reproductor:", e);
+  const handleError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    const videoElement = e.currentTarget;
+    const error = videoElement.error;
+    let errorMessage = "Error desconocido.";
+    if (error) {
+        switch (error.code) {
+            case error.MEDIA_ERR_ABORTED:
+                errorMessage = 'La carga del video fue abortada.';
+                break;
+            case error.MEDIA_ERR_NETWORK:
+                errorMessage = 'Error de red. Revisa tu conexión o el proxy podría estar fallando.';
+                break;
+            case error.MEDIA_ERR_DECODE:
+                errorMessage = 'Error de decodificación. El archivo de video podría estar corrupto.';
+                break;
+            case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                errorMessage = 'Formato de video no soportado o URL incorrecta.';
+                break;
+            default:
+                errorMessage = 'Ocurrió un error inesperado durante la reproducción.';
+                break;
+        }
+        console.error(`🔴 Error en reproductor: Code ${error.code}; Message: ${error.message || errorMessage}`, error);
+    } else {
+        console.error("🔴 Error en reproductor (evento sin objeto de error):", e);
+    }
+    
     setIsLoading(false);
     setHasError(true);
   };
