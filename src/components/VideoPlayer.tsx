@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import videojs from "video.js";
-import "video.js/dist/video.js.css";
+import "video.js/dist/video-js.css";
 import { Loader2, AlertCircle } from "lucide-react";
 
 interface VideoPlayerProps {
@@ -21,6 +21,11 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
 
     setIsLoading(true);
     setError(null);
+
+    // Limpiar contenedor previo si existe
+    if (videoRef.current) {
+      videoRef.current.innerHTML = "";
+    }
 
     // Contenedor del video
     const videoElement = document.createElement("video-js");
@@ -65,7 +70,6 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
     });
 
     player.on("ready", () => {
-      console.log("[VideoJS] Player Ready");
       setIsLoading(false);
     });
 
