@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 const SERVER = "http://kytv.xyz";
 const USER = "7882659395";
 const PASS = "2438687584";
-const PROJECT_ID = "vspullgchtzqgdclqjaw";
 
 export const xtreamApiRequest = async (action: string) => {
   const { data, error } = await supabase.functions.invoke('xtream-proxy', {
@@ -23,21 +22,11 @@ export const useXtreamQuery = (action: string) => {
   });
 };
 
-/**
- * getProxiedVideoUrl: Envía el video a través de un túnel HTTPS para evitar
- * bloqueos de "Contenido Mixto" en la web y en el APK.
- */
-export const getProxiedVideoUrl = (directUrl: string) => {
-  // Usamos la URL completa de la función de Supabase
-  return `https://${PROJECT_ID}.supabase.co/functions/v1/video-proxy?url=${encodeURIComponent(directUrl)}`;
-};
-
+// URL Directa: Es la única forma de que una película de 2 horas no se corte.
 export const getXtreamMovieUrl = (server: string, id: any) => {
-  const directUrl = `${server}/movie/${USER}/${PASS}/${id}.mkv`;
-  return getProxiedVideoUrl(directUrl);
+  return `${server}/movie/${USER}/${PASS}/${id}.mkv`;
 };
 
 export const getXtreamLiveUrl = (server: string, id: any) => {
-  const directUrl = `${server}/live/${USER}/${PASS}/${id}.ts`;
-  return getProxiedVideoUrl(directUrl);
+  return `${server}/live/${USER}/${PASS}/${id}.ts`;
 };
