@@ -1,4 +1,4 @@
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 const SUPABASE_PROJECT_ID = "vspullgchtzqgdclqjaw";
@@ -25,15 +25,12 @@ export const xtreamApiRequest = async (action: string) => {
         body: { server, action },
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       
       if (data.user_info?.auth === 0) {
         throw new Error(`Autenticación fallida en el servidor: ${server}`);
       }
 
-      // Success! Return data and the working server
       return { data, workingServer: server };
 
     } catch (error: any) {
@@ -42,7 +39,6 @@ export const xtreamApiRequest = async (action: string) => {
     }
   }
 
-  // If the loop completes without returning, all servers failed.
   throw new Error(lastError?.message || `[useXtream] Todos los servidores fallaron para la acción: ${action}`);
 };
 
@@ -50,15 +46,16 @@ export const useXtreamQuery = (action: "get_live_streams" | "get_live_categories
   return useQuery({
     queryKey: ["xtreamData", action],
     queryFn: () => xtreamApiRequest(action),
-    staleTime: 1000 * 60 * 60, // 1 hora de caché
+    staleTime: 1000 * 60 * 60,
     enabled: !!action,
   });
 };
 
 export const getXtreamMovieUrl = (serverUrl: string, streamId: string | number, extension: string = 'mp4') => {
     if (!serverUrl) return "";
-    const finalExtension = extension === 'mkv' ? 'ts' : (extension || 'mp4');
-    const videoUrl = `${serverUrl}/movie/${USER}/${PASS}/${streamId}.${finalExtension}`;
+    // TRUCO: Forzamos .ts porque los servidores Xtream lo convierten automáticamente 
+    // a un formato que el navegador sí puede reproducir mediante HLS.
+    const videoUrl = `${serverUrl}/movie/${USER}/${PASS}/${streamId}.ts`;
     return createProxyUrl(videoUrl);
 }
 

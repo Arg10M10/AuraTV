@@ -38,7 +38,7 @@ serve(async (req) => {
 
     const responseHeaders = new Headers(corsHeaders);
     
-    // Copiamos cabeceras esenciales del servidor de origen
+    // Copiamos cabeceras esenciales
     const headersToForward = ['content-type', 'content-length', 'accept-ranges', 'content-range'];
     response.headers.forEach((value, key) => {
       if (headersToForward.includes(key.toLowerCase())) {
@@ -46,10 +46,11 @@ serve(async (req) => {
       }
     });
 
-    // Forzamos tipos de contenido si el servidor no los envía correctamente
+    // Forzamos el tipo de contenido para asegurar la reproducción
     if (videoUrl.includes('.m3u8')) {
       responseHeaders.set('content-type', 'application/x-mpegURL');
-    } else if (videoUrl.includes('.ts')) {
+    } else if (videoUrl.endsWith('.ts')) {
+      // El formato .ts debe ser tratado como video/mp2t para que hls.js lo procese
       responseHeaders.set('content-type', 'video/mp2t');
     } else if (!responseHeaders.has('content-type')) {
       responseHeaders.set('content-type', 'video/mp4');
