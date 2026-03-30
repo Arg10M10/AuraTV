@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2, MonitorPlay, RefreshCw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface VideoPlayerProps {
   url: string;
@@ -20,11 +21,11 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
     setError(null);
     
     /**
-     * NOTA: Los navegadores bloquean la modificación manual del User-Agent vía JS.
-     * La inyección del User-Agent 'IPTVSmarters/1.0.0' debe hacerse en el 
-     * código nativo de Android (MainActivity.java) que se detalla en el archivo de instrucciones.
+     * Como estamos en Web, usamos el Túnel de Streaming de Supabase.
+     * Este túnel inyecta el User-Agent 'IPTVSmarters/1.0.0' que el CDN exige.
      */
-    video.src = url;
+    const proxyUrl = `https://vspullgchtzqgdclqjaw.supabase.co/functions/v1/video-proxy?url=${encodeURIComponent(url)}`;
+    video.src = proxyUrl;
     
     const handleCanPlay = () => {
       setIsLoading(false);
@@ -34,8 +35,8 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
     };
 
     const handleError = () => {
-      console.error("[VideoPlayer] Error de conexión:", video.error);
-      setError("El servidor CDN ha rechazado la conexión o el formato no es compatible.");
+      console.error("[VideoPlayer] Error de carga:", video.error);
+      setError("El CDN ha rechazado la conexión. Es posible que el enlace haya caducado.");
       setIsLoading(false);
     };
 
@@ -55,17 +56,14 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
         className="w-full h-full object-contain"
         controls
         playsInline
-        // Forzamos anonimato total para el CDN
         crossOrigin="anonymous"
-        // Evitamos que el CDN sepa que venimos de una web
-        referrerPolicy="no-referrer"
       />
       
       {isLoading && !error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10">
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
           <p className="text-white font-black tracking-widest text-[10px] uppercase animate-pulse">
-            Iniciando Flujo MKV 4K
+            Sincronizando Túnel 4K MKV
           </p>
         </div>
       )}
@@ -73,9 +71,9 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 p-8 text-center z-20">
           <MonitorPlay className="h-16 w-16 text-destructive mb-6" />
-          <h3 className="text-white text-xl font-black mb-2">ERROR DE REPRODUCCIÓN</h3>
+          <h3 className="text-white text-xl font-black mb-2">ERROR DE CARGA CDN</h3>
           <p className="text-zinc-500 text-sm max-w-sm mb-6">
-            El CDN ha rechazado la petición. Asegúrate de haber aplicado el parche de User-Agent en Android Studio.
+            El túnel no pudo saltar la protección del CDN o el formato MKV no es compatible con este navegador.
           </p>
           <button 
             onClick={() => window.location.reload()}

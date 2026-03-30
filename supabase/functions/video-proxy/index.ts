@@ -23,24 +23,27 @@ serve(async (req) => {
       });
     }
 
-    // Preparamos las cabeceras para la petición al servidor IPTV
+    // Preparamos las cabeceras para engañar al CDN
     const headers = new Headers({
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'User-Agent': 'IPTVSmarters/1.0.0', // EL CDN CREE QUE ES LA APP OFICIAL
       'Accept': '*/*',
+      'Referer': '', // REFERER VACÍO PARA MÁXIMO ANONIMATO
+      'Connection': 'keep-alive'
     });
 
-    // IMPORTANTE: Reenviar la cabecera Range para permitir el "seeking" (adelantar/atrasar)
+    // Reenviamos la cabecera Range para permitir el "seeking" en 4K
     const range = req.headers.get('range');
     if (range) {
       headers.set('range', range);
     }
 
+    // Petición al servidor/CDN original
     const response = await fetch(videoUrl, { 
       headers,
-      redirect: 'follow'
+      redirect: 'follow' // SIGUE AUTOMÁTICAMENTE LA REDIRECCIÓN A LIMITEDCDN.COM
     });
 
-    // Construimos las cabeceras de respuesta
+    // Construimos las cabeceras de respuesta para el navegador
     const responseHeaders = new Headers(corsHeaders);
     
     // Mapeamos cabeceras críticas del servidor original
@@ -51,20 +54,20 @@ serve(async (req) => {
       }
     });
 
-    // Si es MKV y el servidor no envía el tipo correcto, lo forzamos para el navegador
-    if (videoUrl.toLowerCase().includes('.mkv') && !responseHeaders.has('content-type')) {
+    // Forzamos el tipo de video si es necesario para el navegador
+    if (!responseHeaders.has('content-type')) {
       responseHeaders.set('content-type', 'video/x-matroska');
     }
 
-    // Retornamos el flujo de datos (stream) directamente
+    // Retornamos el flujo de datos (stream) directamente sin procesar
     return new Response(response.body, {
       status: response.status,
       headers: responseHeaders,
     });
 
   } catch (error) {
-    console.error("[video-proxy] Error crítico:", error.message);
-    return new Response(JSON.stringify({ error: "Error en el túnel de video", details: error.message }), {
+    console.error("[video-proxy] Error en el túnel:", error.message);
+    return new Response(JSON.stringify({ error: "Error en el túnel de video 4K" }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
