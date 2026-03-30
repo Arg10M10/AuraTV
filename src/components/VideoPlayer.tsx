@@ -64,8 +64,9 @@ const VideoPlayer = ({ url, onNextServer, serverName }: VideoPlayerProps) => {
                 crossOrigin: "anonymous",
               },
               hlsOptions: {
+                // ¡AQUÍ ESTÁ LA SEGUNDA PARTE DE LA MAGIA!
                 xhrSetup: function(xhr: any) {
-                  xhr.setRequestHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+                  xhr.setRequestHeader('User-Agent', 'IPTVSmarters/1.0.0 (iPad; iPhone; iOS)');
                 }
               }
             }

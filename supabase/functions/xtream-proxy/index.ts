@@ -32,16 +32,24 @@ serve(async (req) => {
     let successfulData = null;
     let workingServer = null;
 
+    // Creamos las cabeceras para simular ser un cliente legítimo
+    const requestHeaders = {
+      'User-Agent': 'IPTVSmarters/1.0.0 (iPad; iPhone; iOS)',
+    };
+
     // Intentamos con cada servidor disponible hasta que uno funcione
     for (const server of SERVERS) {
       try {
         const url = `${server}/player_api.php?username=${USER}&password=${PASS}&action=${action}`
-        console.log(`[xtream-proxy] Intentando ${server} para acción: ${action}`)
+        console.log(`[xtream-proxy] Intentando ${server} para acción: ${action} con User-Agent`)
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 segundos de espera por servidor
 
-        const response = await fetch(url, { signal: controller.signal });
+        const response = await fetch(url, { 
+          signal: controller.signal,
+          headers: requestHeaders // <-- ¡AQUÍ ESTÁ LA MAGIA!
+        });
         clearTimeout(timeoutId);
 
         if (response.ok) {
