@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
@@ -8,7 +8,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Loader2, Globe, Tv, Settings2 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -16,11 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 // Interfaces para la API Pública
 interface MergedChannel {
@@ -40,19 +34,17 @@ interface CountryGroup {
 }
 
 const fetchIptvOrgData = async (): Promise<MergedChannel[]> => {
-  const [channelsRes, streamsRes, countriesRes, categoriesRes, languagesRes] = await Promise.all([
+  const [channelsRes, streamsRes, countriesRes, categoriesRes] = await Promise.all([
     fetch("https://iptv-org.github.io/api/channels.json"),
     fetch("https://iptv-org.github.io/api/streams.json"),
     fetch("https://iptv-org.github.io/api/countries.json"),
     fetch("https://iptv-org.github.io/api/categories.json"),
-    fetch("https://iptv-org.github.io/api/languages.json"),
   ]);
 
   const channels = await channelsRes.json();
   const streams = await streamsRes.json();
   const countries = await countriesRes.json();
   const categories = await categoriesRes.json();
-  const languages = await languagesRes.json();
 
   const streamsMap = new Map();
   for (const stream of streams) {
@@ -86,7 +78,7 @@ const LiveTV = () => {
   const [currentChannel, setCurrentChannel] = useState<MergedChannel | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
-  const { data: channels, isLoading, isError, error } = useQuery<MergedChannel[]>({
+  const { data: channels, isLoading } = useQuery<MergedChannel[]>({
     queryKey: ["iptvOrgChannels"],
     queryFn: fetchIptvOrgData,
     enabled: activeTab === "public"
@@ -110,8 +102,6 @@ const LiveTV = () => {
   }, [channels, selectedCategory]);
 
   const handleXtreamLogin = (server: string, user: string, pass: string) => {
-    // Aquí es donde se usaría el paquete @iptv/xtream-api
-    // Por ahora, simulamos la conexión ya que Xtream requiere un servidor real
     console.log("Conectando a Xtream:", { server, user, pass });
     alert("Función Xtream configurada. Conecta tus datos para empezar.");
   };
@@ -129,19 +119,17 @@ const LiveTV = () => {
 
   return (
     <Layout>
-      <div className="flex flex-col space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Televisión en Vivo</h1>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[400px]">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="public" className="flex items-center gap-2">
-                <Globe className="h-4 w-4" /> Públicos
-              </TabsTrigger>
-              <TabsTrigger value="xtream" className="flex items-center gap-2">
-                <Settings2 className="h-4 w-4" /> Xtream API
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <TabsList className="grid w-[400px] grid-cols-2">
+            <TabsTrigger value="public" className="flex items-center gap-2">
+              <Globe className="h-4 w-4" /> Públicos
+            </TabsTrigger>
+            <TabsTrigger value="xtream" className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4" /> Xtream API
+            </TabsTrigger>
+          </TabsList>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
@@ -162,7 +150,7 @@ const LiveTV = () => {
           </div>
 
           <div className="space-y-4">
-            <TabsContent value="public" className="mt-0">
+            <TabsContent value="public" className="mt-0 border-0 p-0">
               {!selectedCountry ? (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -234,12 +222,12 @@ const LiveTV = () => {
               )}
             </TabsContent>
 
-            <TabsContent value="xtream" className="mt-0">
+            <TabsContent value="xtream" className="mt-0 border-0 p-0">
               <XtreamForm onLogin={handleXtreamLogin} />
             </TabsContent>
           </div>
         </div>
-      </div>
+      </Tabs>
     </Layout>
   );
 };
