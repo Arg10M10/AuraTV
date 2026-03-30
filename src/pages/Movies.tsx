@@ -17,8 +17,7 @@ const SERVERS = [
   "http://name-port.to"
 ];
 
-// Regla #2: Usar proxy CORS para saltar la seguridad del navegador
-const CORS_PROXY = "https://corsproxy.io/?";
+const CORS_PROXY = "https://proxy.cors.sh/";
 
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -68,7 +67,7 @@ const Movies = () => {
 
   // Generar URL dinámica con PROXY para evitar CORS
   const currentUrl = selectedMovie && iptvData?.creds
-    ? `${CORS_PROXY}${encodeURIComponent(`${SERVERS[serverIndex]}/movie/${iptvData.creds.user}/${iptvData.creds.pass}/${selectedMovie.stream_id}.${selectedMovie.container_extension || 'mp4'}`)}`
+    ? `${CORS_PROXY}${SERVERS[serverIndex]}/movie/${iptvData.creds.user}/${iptvData.creds.pass}/${selectedMovie.stream_id}.${selectedMovie.container_extension || 'mp4'}`
     : null;
 
   if (selectedMovie) {

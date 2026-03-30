@@ -23,12 +23,12 @@ const VideoPlayer = ({ url, onNextServer, serverName }: VideoPlayerProps) => {
     setShowMixedContentWarning(false);
   }, [url]);
 
-  // Detector de Timeout
+  // Detector de Mixed Content o Timeout
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     if (isLoading && url) {
       timeout = setTimeout(() => {
-        if (isLoading) { // Si sigue cargando después de 8s
+        if (url.startsWith("http://") && window.location.protocol === "https:") {
           setShowMixedContentWarning(true);
         }
       }, 8000);
@@ -59,14 +59,13 @@ const VideoPlayer = ({ url, onNextServer, serverName }: VideoPlayerProps) => {
           }}
           config={{
             file: {
-              forceHLS: true, // Regla #3: Forzar HLS.js para compatibilidad
+              forceVideo: true,
               attributes: {
                 crossOrigin: "anonymous",
               },
               hlsOptions: {
-                // Regla #5: Forzar el User-Agent solicitado
                 xhrSetup: function(xhr: any) {
-                  xhr.setRequestHeader('User-Agent', 'Mozilla/5.0');
+                  xhr.setRequestHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
                 }
               }
             }
@@ -89,9 +88,9 @@ const VideoPlayer = ({ url, onNextServer, serverName }: VideoPlayerProps) => {
           ) : (
             <div className="bg-yellow-500/10 border border-yellow-500/50 p-6 rounded-xl max-w-md flex flex-col items-center">
               <ShieldAlert className="h-10 w-10 text-yellow-500 mb-4" />
-              <p className="text-yellow-500 font-bold mb-2 text-lg">Conexión Lenta o Bloqueada</p>
+              <p className="text-yellow-500 font-bold mb-2 text-lg">Bloqueo de Seguridad (HTTPS)</p>
               <p className="text-zinc-300 text-sm mb-6">
-                El servidor está tardando en responder. Si el problema persiste, prueba a cambiar de servidor.
+                Tu navegador está bloqueando el video porque el servidor es HTTP. Haz clic en el candado de la barra de direcciones y permite el <b>Contenido no seguro</b>.
               </p>
               {onNextServer && (
                 <Button onClick={onNextServer} className="w-full bg-yellow-600 hover:bg-yellow-700 text-white">
