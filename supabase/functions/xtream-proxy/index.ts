@@ -5,51 +5,72 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Lista de servidores proporcionados por el usuario
+const SERVERS = [
+  "http://kytv.xyz",
+  "http://cdn-ky.com",
+  "http://name-port.to"
+];
+
 serve(async (req) => {
-  // Manejo de CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { action, stream_id } = await req.json()
-    
-    // Datos configurados por el usuario
-    const SERVER = "http://kytv.xyz"
+    const { action } = await req.json()
     const USER = "7882659395"
     const PASS = Deno.env.get('XTREAM_PASSWORD')
 
     if (!PASS) {
-      console.error("[xtream-proxy] XTREAM_PASSWORD secret not found")
-      return new Response(JSON.stringify({ error: "Configuración incompleta" }), { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ error: "XTREAM_PASSWORD no configurada" }), { 
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       })
     }
 
-    let url = `${SERVER}/player_api.php?username=${USER}&password=${PASS}&action=${action}`
-    
-    console.log(`[xtream-proxy] Fetching: ${action}`)
-    
-    const response = await fetch(url)
-    const data = await response.json()
+    let lastError = null;
+    let successfulData = null;
+    let workingServer = null;
 
-    // Si la acción es obtener el stream, devolvemos también la URL base construida con el secret
-    // para que el frontend pueda armar el enlace del video
-    const result = {
-      data,
-      credentials: {
-        server: SERVER,
-        user: USER,
-        pass: PASS // Se envía al cliente para el reproductor (uso familiar interno)
+    // Intentamos con cada servidor disponible hasta que uno funcione
+    for (const server of SERVERS) {
+      try {
+        const url = `${server}/player_api.php?username=${USER}&password=${PASS}&action=${action}`
+        console.log(`[xtream-proxy] Intentando ${server} para acción: ${action}`)
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 segundos de espera por servidor
+
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          successfulData = await response.json();
+          workingServer = server;
+          break; // ¡Éxito! Salimos del bucle
+        }
+      } catch (err) {
+        console.warn(`[xtream-proxy] Falló servidor ${server}:`, err.message);
+        lastError = err;
       }
     }
 
-    return new Response(JSON.stringify(result), {
+    if (!successfulData) {
+      throw new Error(lastError?.message || "Ningún servidor de IPTV respondió");
+    }
+
+    return new Response(JSON.stringify({
+      data: successfulData,
+      credentials: {
+        server: workingServer,
+        user: USER,
+        pass: PASS
+      }
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    console.error("[xtream-proxy] Error:", error.message)
+    console.error("[xtream-proxy] Error crítico:", error.message)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
