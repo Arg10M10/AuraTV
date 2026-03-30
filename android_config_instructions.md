@@ -1,31 +1,9 @@
-# Configuración Nativa de Android (Aura TV)
+# Guía de Configuración Android (Aura TV - Nativo)
 
-Para que el CDN no bloquee los videos en tu app final, debes aplicar estos 3 cambios en Android Studio:
+Sigue estos pasos en Android Studio para que el reproductor nativo funcione:
 
-## 1. Habilitar User-Agent Personalizado (¡LO MÁS IMPORTANTE!)
-El servidor `limitedcdn.com` solo deja pasar a apps que se identifiquen como reproductores. 
-Abre `android/app/src/main/java/com/auratv/app/MainActivity.java` y añade este código:
-
-```java
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import com.getcapacitor.BridgeActivity;
-
-public class MainActivity extends BridgeActivity {
-  @Override
-  public void onResume() {
-    super.onResume();
-    // Esto hace que toda tu app parezca un reproductor legal ante los CDNs
-    WebView webView = (WebView) this.getBridge().getWebView();
-    WebSettings settings = webView.getSettings();
-    settings.setUserAgentString("IPTVSmarters/1.0.0");
-  }
-}
-```
-
-## 2. Habilitar Tráfico HTTP (Cleartext)
-IPTV usa muchos links `http`. Android los bloquea por defecto.
-Abre `android/app/src/main/AndroidManifest.xml` y añade:
+## 1. Habilitar Tráfico HTTP (Cleartext)
+Abre `android/app/src/main/AndroidManifest.xml` y busca la etiqueta `<application>`. Añade el atributo `android:usesCleartextTraffic="true"`.
 
 ```xml
 <application
@@ -33,7 +11,17 @@ Abre `android/app/src/main/AndroidManifest.xml` y añade:
     android:usesCleartextTraffic="true">
 ```
 
-## 3. Sincronizar con Capacitor
-Cada vez que cambies el código web, corre esto para que Android se entere:
+## 2. Permisos de Internet
+Asegúrate de que estas líneas estén antes de `<application>` en el mismo archivo:
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+```
+
+## 3. Registrar el Plugin
+En Capacitor 5+, esto suele ser automático, pero si falla, abre `MainActivity.java` y asegúrate de que el bridge esté correcto.
+
+## 4. Sincronización
+Corre este comando cada vez que cambies el código:
 ```bash
 npx cap sync android

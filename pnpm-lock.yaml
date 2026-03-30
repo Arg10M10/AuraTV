@@ -113,6 +113,9 @@ importers:
       '@types/video.js':
         specifier: ^7.3.58
         version: 7.3.58
+      capacitor-video-player:
+        specifier: ^6.0.2
+        version: 6.0.2(@capacitor/core@8.3.0)(hls.js@1.6.15)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1714,6 +1717,13 @@ packages:
 
   caniuse-lite@1.0.30001714:
     resolution: {integrity: sha512-mtgapdwDLSSBnCI3JokHM7oEQBLxiJKVRtg10AxM1AyeiKcM96f0Mkbqeq+1AbiCtvMcHRulAAEMu693JrSWqg==}
+
+  capacitor-video-player@6.0.2:
+    resolution: {integrity: sha512-FMrl6ttbh+IB9XWTrVmeGliENzL9r4WAMf0DpBz5H5NSoENZPb35MouwTPiSLicWgt8iRvVLHT7SvQxveytr3w==}
+    engines: {node: '>=16.0.0'}
+    peerDependencies:
+      '@capacitor/core': ^6.0.0
+      hls.js: ^1.4.0
 
   castable-video@1.1.11:
     resolution: {integrity: sha512-LCRTK6oe7SB1SiUQFzZCo6D6gcEzijqBTVIuj3smKpQdesXM18QTbCVqWgh9MfOeQgTx/i9ji5jGcdqNPeWg2g==}
@@ -4548,6 +4558,11 @@ snapshots:
   camelcase@8.0.0: {}
 
   caniuse-lite@1.0.30001714: {}
+
+  capacitor-video-player@6.0.2(@capacitor/core@8.3.0)(hls.js@1.6.15):
+    dependencies:
+      '@capacitor/core': 8.3.0
+      hls.js: 1.6.15
 
   castable-video@1.1.11:
     dependencies:

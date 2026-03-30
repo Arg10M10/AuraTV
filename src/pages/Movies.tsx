@@ -2,26 +2,23 @@
 
 import { useState, useMemo } from "react";
 import Layout from "@/components/Layout";
-import VideoPlayer from "@/components/VideoPlayer";
 import ContentCard from "@/components/ContentCard";
-import { Loader2, Search, ArrowLeft, AlertCircle } from "lucide-react";
+import { Loader2, Search, AlertCircle, PlayCircle } from "lucide-react";
 import { useXtreamQuery, getXtreamMovieUrl } from "@/hooks/useXtream";
 import { proxyImage } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { playNatively } from "@/lib/native-player";
 
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMovie, setSelectedMovie] = useState<any>(null);
-
-  const { data: queryResult, isLoading: isLoadingList, error, refetch } = useXtreamQuery("get_vod_streams");
+  const { data: queryResult, isLoading, error, refetch } = useXtreamQuery("get_vod_streams");
 
   const iptvData = queryResult?.data;
   const workingServer = queryResult?.workingServer;
 
   const filteredMovies = useMemo(() => {
     if (!iptvData || !Array.isArray(iptvData)) return [];
-    
-    if (!searchQuery) return iptvData.slice(0, 100); // Mostramos las primeras 100 por rendimiento
+    if (!searchQuery) return iptvData.slice(0, 100);
 
     const lowerQuery = searchQuery.toLowerCase();
     return iptvData
@@ -29,29 +26,11 @@ const Movies = () => {
       .slice(0, 100);
   }, [iptvData, searchQuery]);
 
-  if (selectedMovie) {
-    const videoUrl = getXtreamMovieUrl(workingServer, selectedMovie.stream_id);
-
-    return (
-      <Layout>
-        <div className="space-y-6 min-h-screen bg-zinc-950 text-white p-4 rounded-3xl">
-          <button onClick={() => setSelectedMovie(null)} className="flex items-center gap-2 text-zinc-400 hover:text-white p-2">
-            <ArrowLeft className="h-5 w-5" /> Volver al catálogo
-          </button>
-          <div className="relative aspect-video rounded-3xl overflow-hidden bg-black shadow-2xl border border-white/10">
-            <VideoPlayer url={videoUrl} />
-          </div>
-          <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-             <h1 className="text-3xl font-black">{selectedMovie.name}</h1>
-             <div className="flex gap-4 mt-3">
-               <span className="bg-primary text-primary-foreground px-3 py-1 rounded-md text-xs font-black">VOD PREMIUM</span>
-               <span className="text-zinc-500 text-sm font-medium">Túnel de datos activo</span>
-             </div>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+  const handlePlay = (movie: any) => {
+    const videoUrl = getXtreamMovieUrl(workingServer, movie.stream_id);
+    const poster = proxyImage(movie.stream_icon);
+    playNatively(videoUrl, movie.name, poster);
+  };
 
   return (
     <Layout>
@@ -60,35 +39,29 @@ const Movies = () => {
           <div className="space-y-1">
             <h1 className="text-5xl font-black italic">AURA <span className="text-primary not-italic">CINE</span></h1>
             <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest">
-              {iptvData ? `${iptvData.length} Películas encontradas` : "Conectando con el servidor..."}
+              {iptvData ? `${iptvData.length} Títulos disponibles` : "Conectando..."}
             </p>
           </div>
           <div className="bg-white/5 p-4 rounded-2xl flex items-center gap-3 border border-white/10 w-full md:w-96">
             <Search className="h-5 w-5 text-white/40" />
             <input 
-              placeholder="Escribe el nombre de una película..." 
-              className="bg-transparent border-none outline-none text-white w-full placeholder:text-zinc-600"
+              placeholder="Buscar título..." 
+              className="bg-transparent border-none outline-none text-white w-full"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </header>
 
-        {isLoadingList ? (
+        {isLoading ? (
           <div className="flex flex-col items-center justify-center py-32 space-y-4">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-zinc-500 font-bold uppercase tracking-tighter text-xs">Cargando biblioteca VOD...</p>
+            <p className="text-zinc-500 font-bold uppercase text-xs">Cargando catálogo nativo...</p>
           </div>
-        ) : error || !Array.isArray(iptvData) ? (
-          <div className="flex flex-col items-center justify-center py-32 space-y-6 text-center">
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-32 space-y-6">
             <AlertCircle className="h-16 w-16 text-destructive" />
-            <div className="space-y-2">
-              <p className="text-xl font-bold">Sin conexión al servidor</p>
-              <p className="text-zinc-500 text-sm max-w-md">El servidor de películas no responde. Verifica tus credenciales o intenta de nuevo.</p>
-            </div>
-            <Button onClick={() => refetch()} variant="outline" className="rounded-xl border-white/10">
-              Reintentar Conexión
-            </Button>
+            <Button onClick={() => refetch()} variant="outline">Reintentar</Button>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
@@ -97,7 +70,7 @@ const Movies = () => {
                 key={movie.stream_id}
                 title={movie.name}
                 imageUrl={proxyImage(movie.stream_icon)}
-                onClick={() => setSelectedMovie(movie)}
+                onClick={() => handlePlay(movie)}
               />
             ))}
           </div>
