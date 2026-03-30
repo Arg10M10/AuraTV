@@ -17,6 +17,8 @@ const SERVERS = [
   "http://name-port.to"
 ];
 
+const CORS_PROXY = "https://proxy.cors.sh/";
+
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
@@ -63,9 +65,9 @@ const Movies = () => {
     toast.success(`Cambiando al servidor: ${SERVERS[nextIndex]}`);
   };
 
-  // Generar URL dinámica basada en el servidor actual y los datos de Xtream
+  // Generar URL dinámica con PROXY para evitar CORS
   const currentUrl = selectedMovie && iptvData?.creds
-    ? `${SERVERS[serverIndex]}/movie/${iptvData.creds.user}/${iptvData.creds.pass}/${selectedMovie.stream_id}.${selectedMovie.container_extension || 'mp4'}`
+    ? `${CORS_PROXY}${SERVERS[serverIndex]}/movie/${iptvData.creds.user}/${iptvData.creds.pass}/${selectedMovie.stream_id}.${selectedMovie.container_extension || 'mp4'}`
     : null;
 
   if (selectedMovie) {
@@ -132,7 +134,7 @@ const Movies = () => {
               {currentUrl && (
                 <div className="mt-8 p-4 bg-white/5 rounded-xl border border-white/10 inline-block">
                   <p className="text-xs text-zinc-500 font-mono break-all">
-                    <span className="text-primary font-bold">URL Actual:</span> {currentUrl.replace(iptvData?.creds.pass, '***')}
+                    <span className="text-primary font-bold">URL (con Proxy):</span> {currentUrl.replace(iptvData?.creds.pass, '***')}
                   </p>
                 </div>
               )}
