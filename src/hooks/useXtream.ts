@@ -23,8 +23,12 @@ export const useXtreamQuery = (action: string) => {
   });
 };
 
-// URL de Video con Túnel de Supabase (Evita el bloqueo de contenido mixto)
+/**
+ * getProxiedVideoUrl: Envía el video a través de un túnel HTTPS para evitar
+ * bloqueos de "Contenido Mixto" en la web y en el APK.
+ */
 export const getProxiedVideoUrl = (directUrl: string) => {
+  // Usamos la URL completa de la función de Supabase
   return `https://${PROJECT_ID}.supabase.co/functions/v1/video-proxy?url=${encodeURIComponent(directUrl)}`;
 };
 
