@@ -1,0 +1,10 @@
+{
+  "appId": "com.auratv.app",
+  "appName": "Aura TV",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "allowNavigation": ["*"],
+    "cleartext": true
+  }
+}

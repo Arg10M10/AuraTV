@@ -46,12 +46,12 @@ export const useXtreamQuery = (action: "get_live_streams" | "get_live_categories
 
 export const getXtreamMovieUrl = (serverUrl: string, streamId: string | number, extension: string = 'mp4') => {
     if (!serverUrl) return "";
-    // Devolvemos la URL directa sin proxy de Supabase
+    // URL DIRECTA para App Nativa (Android maneja el tráfico cleartext con el config.xml)
     return `${serverUrl}/movie/${USER}/${PASS}/${streamId}.${extension}`;
 }
 
 export const getXtreamLiveUrl = (serverUrl: string, streamId: string | number) => {
     if (!serverUrl) return "";
-    // Devolvemos la URL directa sin proxy de Supabase
-    return `${serverUrl}/live/${USER}/${PASS}/${streamId}.m3u8`;
+    // URL DIRECTA para App Nativa
+    return `${serverUrl}/live/${USER}/${PASS}/${streamId}.ts`;
 }
