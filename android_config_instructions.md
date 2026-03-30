@@ -1,9 +1,29 @@
 # Configuración Nativa de Android (Aura TV)
 
-Sigue estos pasos en Android Studio para habilitar el 4K y saltar bloqueos:
+Para que el CDN no bloquee los videos, debes aplicar estos cambios en Android Studio:
 
-## 1. Habilitar Tráfico HTTP (Cleartext)
-Abre `android/app/src/main/AndroidManifest.xml` y añade:
+## 1. Habilitar User-Agent Personalizado (¡CRÍTICO!)
+Abre `android/app/src/main/java/com/auratv/app/MainActivity.java` y configura el WebView:
+
+```java
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {
+  @Override
+  public void onResume() {
+    super.onResume();
+    // Inyecta el User-Agent que pide el CDN para toda la app
+    WebView webView = (WebView) this.getBridge().getWebView();
+    WebSettings settings = webView.getSettings();
+    settings.setUserAgentString("IPTVSmarters/1.0.0");
+  }
+}
+```
+
+## 2. Habilitar Tráfico HTTP (Cleartext)
+Abre `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
 <application
@@ -12,8 +32,8 @@ Abre `android/app/src/main/AndroidManifest.xml` y añade:
     android:networkSecurityConfig="@xml/network_security_config">
 ```
 
-## 2. Archivo de Seguridad de Red
-Crea `android/app/src/main/res/xml/network_security_config.xml` con este contenido:
+## 3. Archivo de Seguridad de Red
+Crea `android/app/src/main/res/xml/network_security_config.xml`:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -26,9 +46,6 @@ Crea `android/app/src/main/res/xml/network_security_config.xml` con este conteni
 </network-security-config>
 ```
 
-## 3. Comandos de Compilación
+## 4. Sincronizar Cambios
 ```bash
-npm run build
-npx cap add android
-npx cap sync
-npx cap open android
+npx cap sync android

@@ -19,19 +19,23 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
     setIsLoading(true);
     setError(null);
     
-    // Conexión directa al servidor IPTV
+    /**
+     * NOTA: Los navegadores bloquean la modificación manual del User-Agent vía JS.
+     * La inyección del User-Agent 'IPTVSmarters/1.0.0' debe hacerse en el 
+     * código nativo de Android (MainActivity.java) que se detalla en el archivo de instrucciones.
+     */
     video.src = url;
     
     const handleCanPlay = () => {
       setIsLoading(false);
       video.play().catch((e) => {
-        console.warn("[VideoPlayer] Autoplay bloqueado o error de codec:", e);
+        console.warn("[VideoPlayer] Autoplay bloqueado:", e);
       });
     };
 
     const handleError = () => {
-      console.error("[VideoPlayer] Error de carga directa:", video.error);
-      setError("Error de conexión directa con el servidor IPTV.");
+      console.error("[VideoPlayer] Error de conexión:", video.error);
+      setError("El servidor CDN ha rechazado la conexión o el formato no es compatible.");
       setIsLoading(false);
     };
 
@@ -51,14 +55,17 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
         className="w-full h-full object-contain"
         controls
         playsInline
+        // Forzamos anonimato total para el CDN
         crossOrigin="anonymous"
+        // Evitamos que el CDN sepa que venimos de una web
+        referrerPolicy="no-referrer"
       />
       
       {isLoading && !error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10">
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
           <p className="text-white font-black tracking-widest text-[10px] uppercase animate-pulse">
-            Sincronizando flujo MKV 4K
+            Iniciando Flujo MKV 4K
           </p>
         </div>
       )}
@@ -66,9 +73,9 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 p-8 text-center z-20">
           <MonitorPlay className="h-16 w-16 text-destructive mb-6" />
-          <h3 className="text-white text-xl font-black mb-2">STREAM BLOQUEADO O NO SOPORTADO</h3>
+          <h3 className="text-white text-xl font-black mb-2">ERROR DE REPRODUCCIÓN</h3>
           <p className="text-zinc-500 text-sm max-w-sm mb-6">
-            El dispositivo no puede reproducir este MKV 4K directamente o el servidor rechaza la conexión.
+            El CDN ha rechazado la petición. Asegúrate de haber aplicado el parche de User-Agent en Android Studio.
           </p>
           <button 
             onClick={() => window.location.reload()}
