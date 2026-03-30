@@ -1,13 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-const SUPABASE_PROJECT_ID = "vspullgchtzqgdclqjaw";
-
-const createProxyUrl = (videoUrl: string) => {
-  const proxy = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/video-proxy`;
-  return `${proxy}?url=${encodeURIComponent(videoUrl)}`;
-}
-
 const SERVERS = [
   "http://kytv.xyz",
   "http://cdn-ky.com",
@@ -53,13 +46,12 @@ export const useXtreamQuery = (action: "get_live_streams" | "get_live_categories
 
 export const getXtreamMovieUrl = (serverUrl: string, streamId: string | number, extension: string = 'mp4') => {
     if (!serverUrl) return "";
-    // USAMOS LA EXTENSIÓN ORIGINAL SIN ALTERARLA
-    const videoUrl = `${serverUrl}/movie/${USER}/${PASS}/${streamId}.${extension}`;
-    return createProxyUrl(videoUrl);
+    // Devolvemos la URL directa sin proxy de Supabase
+    return `${serverUrl}/movie/${USER}/${PASS}/${streamId}.${extension}`;
 }
 
 export const getXtreamLiveUrl = (serverUrl: string, streamId: string | number) => {
     if (!serverUrl) return "";
-    const videoUrl = `${serverUrl}/live/${USER}/${PASS}/${streamId}.m3u8`;
-    return createProxyUrl(videoUrl);
+    // Devolvemos la URL directa sin proxy de Supabase
+    return `${serverUrl}/live/${USER}/${PASS}/${streamId}.m3u8`;
 }

@@ -22,23 +22,25 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
     setIsLoading(true);
     setError(null);
 
-    // Limpiar contenedor previo si existe
+    // Limpiar contenedor previo
     if (videoRef.current) {
       videoRef.current.innerHTML = "";
     }
 
-    // Contenedor del video
-    const videoElement = document.createElement("video-js");
-    videoElement.classList.add("vjs-big-play-centered", "vjs-theme-city");
+    // Crear elemento de video con atributos de seguridad solicitados
+    const videoElement = document.createElement("video");
+    videoElement.className = "video-js vjs-big-play-centered vjs-theme-city w-full h-full";
+    videoElement.setAttribute("crossorigin", "anonymous");
+    videoElement.setAttribute("referrerpolicy", "no-referrer");
+    videoElement.setAttribute("playsinline", "true");
     videoRef.current.appendChild(videoElement);
 
-    // Determinamos el tipo MIME basado en la extensión original
-    const extension = url.split('.').pop()?.split('?')[0].toLowerCase();
-    let type = "video/mp4"; // Default
-    
-    if (extension === "mkv") type = "video/x-matroska";
-    if (extension === "m3u8") type = "application/x-mpegURL";
-    if (extension === "ts") type = "video/mp2t";
+    // Proxy ligero AllOrigins para saltar CORS sin procesar el video
+    const finalUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+
+    // Determinamos el tipo MIME. Forzamos video/mp4 para MKV/VOD para engañar al navegador
+    const isLive = url.includes(".m3u8");
+    const type = isLive ? "application/x-mpegURL" : "video/mp4";
 
     const player = playerRef.current = videojs(videoElement, {
       autoplay: true,
@@ -46,13 +48,8 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
       responsive: true,
       fluid: true,
       preload: "auto",
-      html5: {
-        vhs: { overrideNative: true },
-        nativeAudioTracks: false,
-        nativeVideoTracks: false
-      },
       sources: [{
-        src: url,
+        src: finalUrl,
         type: type
       }],
       controlBar: {
@@ -98,7 +95,7 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
       {isLoading && !error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10 pointer-events-none">
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-white/60 text-sm font-medium">Sincronizando con {serverName || "Servidor Premium"}...</p>
+          <p className="text-white/60 text-sm font-medium">Conectando con {serverName || "Servidor Directo"}...</p>
         </div>
       )}
 
