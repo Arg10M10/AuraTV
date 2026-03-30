@@ -2,10 +2,12 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
+import XtreamForm from "@/components/XtreamForm";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Globe } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Loader2, Globe, Tv, Settings2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select,
@@ -20,39 +22,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// Interfaces para la API
-interface IptvOrgChannel {
-  id: string;
-  name: string;
-  logo: string | null;
-  country: string;
-  languages: string[];
-  categories: string[];
-  is_nsfw: boolean;
-}
-
-interface IptvOrgStream {
-  channel: string;
-  url: string;
-  status: string;
-}
-
-interface IptvOrgCountry {
-  code: string;
-  name: string;
-}
-
-interface IptvOrgCategory {
-  id: string;
-  name: string;
-}
-
-interface IptvOrgLanguage {
-  code: string;
-  name: string;
-}
-
-// Interfaz para el canal combinado
+// Interfaces para la API Pública
 interface MergedChannel {
   id: string;
   name: string;
@@ -64,20 +34,13 @@ interface MergedChannel {
   languages: string[];
 }
 
-// Interfaz para el grupo de países
 interface CountryGroup {
   name: string;
   channels: MergedChannel[];
 }
 
 const fetchIptvOrgData = async (): Promise<MergedChannel[]> => {
-  const [
-    channelsRes,
-    streamsRes,
-    countriesRes,
-    categoriesRes,
-    languagesRes,
-  ] = await Promise.all([
+  const [channelsRes, streamsRes, countriesRes, categoriesRes, languagesRes] = await Promise.all([
     fetch("https://iptv-org.github.io/api/channels.json"),
     fetch("https://iptv-org.github.io/api/streams.json"),
     fetch("https://iptv-org.github.io/api/countries.json"),
@@ -85,260 +48,196 @@ const fetchIptvOrgData = async (): Promise<MergedChannel[]> => {
     fetch("https://iptv-org.github.io/api/languages.json"),
   ]);
 
-  if (
-    !channelsRes.ok ||
-    !streamsRes.ok ||
-    !countriesRes.ok ||
-    !categoriesRes.ok ||
-    !languagesRes.ok
-  ) {
-    throw new Error("Error al cargar los datos: Uno de los archivos de la API no se pudo obtener.");
-  }
+  const channels = await channelsRes.json();
+  const streams = await streamsRes.json();
+  const countries = await countriesRes.json();
+  const categories = await categoriesRes.json();
+  const languages = await languagesRes.json();
 
-  const channels: IptvOrgChannel[] = await channelsRes.json();
-  const streams: IptvOrgStream[] = await streamsRes.json();
-  const countries: IptvOrgCountry[] = await countriesRes.json();
-  const categories: IptvOrgCategory[] = await categoriesRes.json();
-  const languages: IptvOrgLanguage[] = await languagesRes.json();
-
-  if (
-    !channels?.length ||
-    !streams?.length ||
-    !countries?.length ||
-    !categories?.length ||
-    !languages?.length
-  ) {
-    throw new Error("Error: La API devolvió datos vacíos o en un formato inesperado.");
-  }
-
-  const streamsMap = new Map<string, IptvOrgStream>();
+  const streamsMap = new Map();
   for (const stream of streams) {
-    if (!streamsMap.has(stream.channel) || (streamsMap.get(stream.channel)?.status !== 'online' && stream.status === 'online')) {
+    if (!streamsMap.has(stream.channel) || stream.status === 'online') {
       streamsMap.set(stream.channel, stream);
     }
   }
 
-  const countriesMap = new Map<string, string>(countries.map((c) => [c.code, c.name]));
-  const categoriesMap = new Map<string, string>(categories.map((c) => [c.id, c.name]));
-  const languagesMap = new Map<string, string>(languages.map((l) => [l.code, l.name]));
+  const countriesMap = new Map(countries.map((c: any) => [c.code, c.name]));
+  const categoriesMap = new Map(categories.map((c: any) => [c.id, c.name]));
 
-  const mergedChannels: MergedChannel[] = [];
-  for (const channel of channels) {
-    if (channel.is_nsfw) continue;
-
-    const stream = streamsMap.get(channel.id);
-    if (stream) {
-      mergedChannels.push({
-        id: channel.id,
-        name: channel.name,
-        logo: channel.logo || "/placeholder.svg",
+  return channels
+    .filter((c: any) => !c.is_nsfw && streamsMap.has(c.id))
+    .map((c: any) => {
+      const stream = streamsMap.get(c.id);
+      return {
+        id: c.id,
+        name: c.name,
+        logo: c.logo || "/placeholder.svg",
         url: stream.url,
-        country: countriesMap.get(channel.country) || channel.country || "Varios",
+        country: countriesMap.get(c.country) || c.country || "Varios",
         status: stream.status,
-        categories: (channel.categories || []).map((catId) => categoriesMap.get(catId) || catId),
-        languages: (channel.languages || []).map((langCode) => languagesMap.get(langCode) || langCode),
-      });
-    }
-  }
-
-  if (mergedChannels.length === 0) {
-    throw new Error("No se pudo combinar ningún canal.");
-  }
-
-  return mergedChannels;
+        categories: (c.categories || []).map((id: string) => categoriesMap.get(id) || id),
+      };
+    });
 };
 
 const LiveTV = () => {
+  const [activeTab, setActiveTab] = useState("public");
   const [selectedCountry, setSelectedCountry] = useState<CountryGroup | null>(null);
   const [currentChannel, setCurrentChannel] = useState<MergedChannel | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("all");
 
   const { data: channels, isLoading, isError, error } = useQuery<MergedChannel[]>({
     queryKey: ["iptvOrgChannels"],
     queryFn: fetchIptvOrgData,
+    enabled: activeTab === "public"
   });
 
   const categories = useMemo(() => {
     if (!channels) return [];
-    const allCategories = new Set(channels.flatMap((c) => c.categories));
-    return Array.from(allCategories).sort();
-  }, [channels]);
-
-  const languages = useMemo(() => {
-    if (!channels) return [];
-    const allLanguages = new Set(channels.flatMap((c) => c.languages));
-    return Array.from(allLanguages).sort();
+    const all = new Set(channels.flatMap((c) => c.categories));
+    return Array.from(all).sort();
   }, [channels]);
 
   const filteredCountries = useMemo(() => {
     if (!channels) return [];
-
-    const filteredChannels = channels.filter((channel) => {
-      const categoryMatch = selectedCategory === "all" || channel.categories.includes(selectedCategory);
-      const languageMatch = selectedLanguage === "all" || channel.languages.includes(selectedLanguage);
-      return categoryMatch && languageMatch;
-    });
-
-    const grouped = filteredChannels.reduce((acc, channel) => {
-      const countryName = channel.country;
-      if (!acc[countryName]) {
-        acc[countryName] = { name: countryName, channels: [] };
-      }
-      acc[countryName].channels.push(channel);
+    const filtered = channels.filter(c => selectedCategory === "all" || c.categories.includes(selectedCategory));
+    const grouped = filtered.reduce((acc, c) => {
+      if (!acc[c.country]) acc[c.country] = { name: c.country, channels: [] };
+      acc[c.country].channels.push(c);
       return acc;
     }, {} as Record<string, CountryGroup>);
-
     return Object.values(grouped).sort((a, b) => a.name.localeCompare(b.name));
-  }, [channels, selectedCategory, selectedLanguage]);
+  }, [channels, selectedCategory]);
 
-  useEffect(() => {
-    if (filteredCountries.length > 0 && filteredCountries[0].channels.length > 0) {
-      // No seleccionamos un canal por defecto para que el usuario elija
-    }
-  }, [filteredCountries]);
-
-  const handleCountrySelect = (country: CountryGroup) => setSelectedCountry(country);
-  const handleChannelSelect = (channel: MergedChannel) => setCurrentChannel(channel);
-  const handleBackToCountries = () => {
-    setSelectedCountry(null);
-    // No reseteamos el canal actual para que el video no desaparezca al volver
+  const handleXtreamLogin = (server: string, user: string, pass: string) => {
+    // Aquí es donde se usaría el paquete @iptv/xtream-api
+    // Por ahora, simulamos la conexión ya que Xtream requiere un servidor real
+    console.log("Conectando a Xtream:", { server, user, pass });
+    alert("Función Xtream configurada. Conecta tus datos para empezar.");
   };
 
-  if (isLoading) {
+  if (isLoading && activeTab === "public") {
     return (
       <Layout>
-        <div className="flex h-full items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-4 text-xl">Cargando miles de canales...</span>
+        <div className="flex h-full flex-col items-center justify-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-xl font-medium">Sintonizando canales...</p>
         </div>
-      </Layout>
-    );
-  }
-
-  if (isError) {
-    return (
-      <Layout>
-        <Alert variant="destructive">
-          <AlertTitle>Error al cargar canales</AlertTitle>
-          <AlertDescription>
-            {error instanceof Error ? error.message : "Ocurrió un error desconocido."}
-          </AlertDescription>
-        </Alert>
       </Layout>
     );
   }
 
   return (
     <Layout>
-      <div className="grid md:grid-cols-3 gap-8">
-        <div className="md:col-span-2">
-          <h1 className="text-3xl font-bold mb-4 truncate">
-            {currentChannel?.name || "TV en Vivo"}
-          </h1>
-          <Card className="overflow-hidden">
-            <VideoPlayer url={currentChannel ? `https://proxy.cors.sh/${currentChannel.url}` : ""} />
-          </Card>
+      <div className="flex flex-col space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Televisión en Vivo</h1>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[400px]">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="public" className="flex items-center gap-2">
+                <Globe className="h-4 w-4" /> Públicos
+              </TabsTrigger>
+              <TabsTrigger value="xtream" className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4" /> Xtream API
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
-        <div>
-          {!selectedCountry ? (
-            <>
-              <h2 className="text-2xl font-bold mb-4">Países</h2>
-              <div className="flex gap-4 mb-4">
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Categoría" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas las categorías</SelectItem>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Idioma" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los idiomas</SelectItem>
-                    {languages.map((lang) => (
-                      <SelectItem key={lang} value={lang}>{lang}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <ScrollArea className="h-[55vh] pr-4">
-                {filteredCountries.length > 0 ? (
-                  <div className="space-y-4">
-                    {filteredCountries.map((country) => (
-                      <Card
-                        key={country.name}
-                        className="cursor-pointer transition-all hover:border-primary"
-                        onClick={() => handleCountrySelect(country)}
-                      >
-                        <CardContent className="flex items-center p-4">
-                          <span className="font-semibold">{country.name}</span>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-muted-foreground text-center">
-                      No se encontraron canales con los filtros seleccionados.
-                    </p>
-                  </div>
-                )}
-              </ScrollArea>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center mb-4">
-                <Button variant="ghost" size="icon" onClick={handleBackToCountries} className="mr-2">
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <h2 className="text-2xl font-bold">{selectedCountry.name}</h2>
-              </div>
-              <ScrollArea className="h-[60vh] pr-4">
+
+        <div className="grid lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex items-center justify-between bg-muted/30 p-4 rounded-lg">
+              <h2 className="text-xl font-semibold truncate">
+                {currentChannel?.name || "Selecciona un canal"}
+              </h2>
+              {currentChannel && (
+                <span className="text-sm bg-primary/10 text-primary px-3 py-1 rounded-full font-medium">
+                  {currentChannel.country}
+                </span>
+              )}
+            </div>
+            <Card className="overflow-hidden border-2 shadow-xl bg-black">
+              <VideoPlayer url={currentChannel ? `https://proxy.cors.sh/${currentChannel.url}` : ""} />
+            </Card>
+          </div>
+
+          <div className="space-y-4">
+            <TabsContent value="public" className="mt-0">
+              {!selectedCountry ? (
                 <div className="space-y-4">
-                  {selectedCountry.channels.map((channel) => (
-                    <Card
-                      key={channel.id}
-                      className={`cursor-pointer transition-all hover:border-primary ${
-                        currentChannel?.id === channel.id ? "border-primary" : ""
-                      }`}
-                      onClick={() => handleChannelSelect(channel)}
-                    >
-                      <CardContent className="flex items-center p-4">
-                        <img
-                          src={channel.logo}
-                          alt={channel.name}
-                          className="w-12 h-12 mr-4 object-contain bg-gray-200 dark:bg-gray-800 rounded-md p-1"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.onerror = null;
-                            target.src = "/placeholder.svg";
-                          }}
-                        />
-                        <span className="font-semibold flex-grow">{channel.name}</span>
-                        {channel.status === "geoblocked" && (
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Globe className="h-5 w-5 text-muted-foreground ml-2" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Este canal puede estar bloqueado en tu región.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold flex items-center gap-2">
+                      <Tv className="h-4 w-4" /> Lista de Países
+                    </h3>
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Categoría" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        {categories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <ScrollArea className="h-[60vh] rounded-md border p-4">
+                    <div className="grid gap-2">
+                      {filteredCountries.map((country) => (
+                        <Button
+                          key={country.name}
+                          variant="outline"
+                          className="justify-between h-auto py-4 px-6 hover:bg-primary hover:text-primary-foreground transition-all group"
+                          onClick={() => setSelectedCountry(country)}
+                        >
+                          <span className="font-semibold">{country.name}</span>
+                          <span className="text-xs opacity-60 group-hover:opacity-100">
+                            {country.channels.length} canales
+                          </span>
+                        </Button>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </div>
-              </ScrollArea>
-            </>
-          )}
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => setSelectedCountry(null)}>
+                      <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                    <h3 className="font-bold">{selectedCountry.name}</h3>
+                  </div>
+                  <ScrollArea className="h-[60vh] rounded-md border p-4">
+                    <div className="grid gap-3">
+                      {selectedCountry.channels.map((channel) => (
+                        <Card
+                          key={channel.id}
+                          className={`cursor-pointer hover:border-primary transition-all ${
+                            currentChannel?.id === channel.id ? "border-primary ring-1 ring-primary" : ""
+                          }`}
+                          onClick={() => setCurrentChannel(channel)}
+                        >
+                          <CardContent className="flex items-center p-3">
+                            <div className="w-10 h-10 rounded bg-muted flex items-center justify-center mr-3 overflow-hidden">
+                              <img
+                                src={channel.logo}
+                                alt=""
+                                className="w-full h-full object-contain"
+                                onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
+                              />
+                            </div>
+                            <span className="text-sm font-medium line-clamp-1">{channel.name}</span>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="xtream" className="mt-0">
+              <XtreamForm onLogin={handleXtreamLogin} />
+            </TabsContent>
+          </div>
         </div>
       </div>
     </Layout>
