@@ -31,14 +31,18 @@ const LiveTV = () => {
     ]
   });
 
-  const { data: categories, isLoading: loadingCats, error: catsError } = results[0];
-  const { data: streams, isLoading: loadingStreams, error: streamsError } = results[1];
+  const { data: categoriesResult, isLoading: loadingCats, error: catsError } = results[0];
+  const { data: streamsResult, isLoading: loadingStreams, error: streamsError } = results[1];
+
+  const categories = categoriesResult?.data;
+  const streams = streamsResult?.data;
+  const workingServer = streamsResult?.workingServer; // Assume both use the same server
 
   const loadingXtream = loadingCats || loadingStreams;
   const xtreamError = catsError || streamsError;
 
   const filteredGroups = useMemo(() => {
-    if (!categories || !streams || !Array.isArray(categories) || !Array.isArray(streams)) return [];
+    if (!categories || !streams || !Array.isArray(categories) || !Array.isArray(streams) || !workingServer) return [];
     
     return categories.map((cat: any) => ({
       name: cat.category_name,
@@ -49,11 +53,11 @@ const LiveTV = () => {
           id: s.stream_id,
           name: s.name,
           logo: s.stream_icon || "/placeholder.svg",
-          url: getXtreamLiveUrl(s.stream_id),
+          url: getXtreamLiveUrl(workingServer, s.stream_id),
           country: cat.category_name
         }))
     })).filter((g: any) => g.channels.length > 0);
-  }, [categories, streams]);
+  }, [categories, streams, workingServer]);
 
   const activeChannels = useMemo(() => {
     if (!selectedGroup) return [];

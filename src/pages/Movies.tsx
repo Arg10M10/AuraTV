@@ -11,7 +11,10 @@ const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
 
-  const { data: iptvData, isLoading: isLoadingList, error } = useXtreamQuery("get_vod_streams");
+  const { data: queryResult, isLoading: isLoadingList, error } = useXtreamQuery("get_vod_streams");
+
+  const iptvData = queryResult?.data;
+  const workingServer = queryResult?.workingServer;
 
   const filteredMovies = useMemo(() => {
     if (!iptvData || !Array.isArray(iptvData)) return [];
@@ -31,7 +34,7 @@ const Movies = () => {
   }
 
   if (selectedMovie) {
-    const videoUrl = getXtreamMovieUrl(selectedMovie.stream_id, selectedMovie.container_extension);
+    const videoUrl = getXtreamMovieUrl(workingServer, selectedMovie.stream_id, selectedMovie.container_extension);
     
     return (
       <Layout>
@@ -48,7 +51,7 @@ const Movies = () => {
           <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl bg-black border border-white/5">
             <VideoPlayer 
               url={videoUrl} 
-              serverName="Servidor Directo"
+              serverName={workingServer ? new URL(workingServer).hostname : "Servidor Directo"}
             />
           </div>
 
@@ -70,7 +73,7 @@ const Movies = () => {
               <h1 className="text-4xl font-black">{selectedMovie.name}</h1>
               <div className="flex items-center gap-4 mt-2 text-zinc-400">
                 {selectedMovie.rating && <span>⭐ {selectedMovie.rating}</span>}
-                <span className="text-primary font-bold">Servidor Premium (Directo)</span>
+                <span className="text-primary font-bold">Servidor Premium ({workingServer ? new URL(workingServer).hostname : 'Directo'})</span>
               </div>
             </div>
           </div>
@@ -111,7 +114,7 @@ const Movies = () => {
           {isLoadingList ? (
             <div className="flex flex-col items-center justify-center py-32 space-y-4">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="text-zinc-500 animate-pulse">Sincronizando miles de películas...</p>
+              <p className="text-zinc-500 animate-pulse">Sincronizando con servidores de video...</p>
             </div>
           ) : error ? (
              <div className="py-20 text-center text-red-400">

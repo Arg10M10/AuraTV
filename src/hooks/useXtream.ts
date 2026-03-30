@@ -1,31 +1,50 @@
 import { useQuery, useQueries } from "@tanstack/react-query";
 
 const CORS_PROXY = "https://api.allorigins.win/raw?url=";
-const SERVER_URL = "http://kytv.xyz";
+const SERVERS = [
+  "http://kytv.xyz",
+  "http://cdn-ky.com",
+  "http://name-port.to"
+];
 const USER = "7882659395";
 const PASS = "2438687584";
 
 export const xtreamApiRequest = async (action: string) => {
-  const apiUrl = `${SERVER_URL}/player_api.php?username=${USER}&password=${PASS}&action=${action}`;
-  const proxyUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
-  
-  const response = await fetch(proxyUrl);
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    throw new Error(`[useXtream] La respuesta de la red no fue correcta para la acción: ${action}`);
-  }
-  
-  const textContent = await response.text();
-  try {
-    const data = JSON.parse(textContent);
-    if (data.user_info?.auth === 0) {
-      throw new Error("La autenticación de la API de Xtream falló.");
+  for (const server of SERVERS) {
+    try {
+      const apiUrl = `${server}/player_api.php?username=${USER}&password=${PASS}&action=${action}`;
+      const proxyUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second timeout
+
+      const response = await fetch(proxyUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Respuesta no OK (${response.status}) del servidor: ${server}`);
+      }
+      
+      const textContent = await response.text();
+      const data = JSON.parse(textContent);
+
+      if (data.user_info?.auth === 0) {
+        throw new Error(`Autenticación fallida en el servidor: ${server}`);
+      }
+
+      // Success! Return data and the working server
+      return { data, workingServer: server };
+
+    } catch (error: any) {
+      console.warn(`[useXtream] Falló el servidor ${server} para la acción ${action}:`, error.message);
+      lastError = error;
     }
-    return data;
-  } catch (e: any) {
-    console.error("[useXtream] Fallo al analizar JSON de la respuesta del proxy:", textContent);
-    throw new Error(`[useXtream] Respuesta JSON no válida para la acción: ${action}. ${e.message}`);
   }
+
+  // If the loop completes without returning, all servers failed.
+  throw new Error(lastError?.message || `[useXtream] Todos los servidores fallaron para la acción: ${action}`);
 };
 
 export const useXtreamQuery = (action: "get_live_streams" | "get_live_categories" | "get_vod_streams" | "get_series_categories" | "get_series") => {
@@ -37,15 +56,15 @@ export const useXtreamQuery = (action: "get_live_streams" | "get_live_categories
   });
 };
 
-export const getXtreamMovieUrl = (streamId: string | number, extension: string = 'mp4') => {
-    // Como se sugirió, probamos .ts para una mejor compatibilidad sobre .mkv
+export const getXtreamMovieUrl = (serverUrl: string, streamId: string | number, extension: string = 'mp4') => {
+    if (!serverUrl) return "";
     const finalExtension = extension === 'mkv' ? 'ts' : (extension || 'mp4');
-    const videoUrl = `${SERVER_URL}/movie/${USER}/${PASS}/${streamId}.${finalExtension}`;
-    // Todavía necesitamos el proxy para la reproducción para evitar contenido mixto y CORS
+    const videoUrl = `${serverUrl}/movie/${USER}/${PASS}/${streamId}.${finalExtension}`;
     return `${CORS_PROXY}${encodeURIComponent(videoUrl)}`;
 }
 
-export const getXtreamLiveUrl = (streamId: string | number) => {
-    const videoUrl = `${SERVER_URL}/live/${USER}/${PASS}/${streamId}.m3u8`;
+export const getXtreamLiveUrl = (serverUrl: string, streamId: string | number) => {
+    if (!serverUrl) return "";
+    const videoUrl = `${serverUrl}/live/${USER}/${PASS}/${streamId}.m3u8`;
     return `${CORS_PROXY}${encodeURIComponent(videoUrl)}`;
 }
