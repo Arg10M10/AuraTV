@@ -1,86 +1,38 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
 import ContentCard from "@/components/ContentCard";
-import { Loader2, Search, ArrowLeft, AlertCircle, ServerCrash, Film, Link } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-
-const CORS_PROXY = "https://api.allorigins.win/raw?url=";
+import { Loader2, Search, ArrowLeft, Film } from "lucide-react";
+import { useXtreamQuery, getXtreamMovieUrl } from "@/hooks/useXtream";
 
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
-  const [finalVideoUrl, setFinalVideoUrl] = useState<string | null>(null);
 
-  const { data: iptvData, isLoading: isLoadingList } = useQuery({
-    queryKey: ["xtreamVodCache"],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('xtream-proxy', {
-        body: { action: "get_vod_streams" }
-      });
-      if (error) throw error;
-      return {
-        streams: Array.isArray(data.data) ? data.data : [],
-        creds: data.credentials
-      };
-    },
-    staleTime: 1000 * 60 * 60, // Cache de 1 hora
-  });
-
-  const resolveUrlMutation = useMutation({
-    mutationFn: async ({ streamId, extension }: { streamId: string, extension: string }) => {
-      const { data, error } = await supabase.functions.invoke('xtream-proxy', {
-        body: { 
-          action: "get_vod_url", 
-          stream_id: streamId,
-          container_extension: extension || 'mp4'
-        }
-      });
-      if (error) throw new Error(error.message);
-      if (!data.finalUrl) throw new Error("La función no devolvió una URL final.");
-      return data.finalUrl;
-    },
-    onSuccess: (url) => {
-      setFinalVideoUrl(url);
-      toast.success("Enlace de video obtenido. Iniciando reproducción.");
-    },
-    onError: (error) => {
-      toast.error(`Error al obtener el enlace: ${error.message}`);
-      setFinalVideoUrl(null);
-    }
-  });
+  const { data: iptvData, isLoading: isLoadingList, error } = useXtreamQuery("get_vod_streams");
 
   const filteredMovies = useMemo(() => {
-    if (!iptvData?.streams) return [];
-    if (!searchQuery) return iptvData.streams.slice(0, 150);
+    if (!iptvData || !Array.isArray(iptvData)) return [];
+    if (!searchQuery) return iptvData.slice(0, 150);
     const lowerQuery = searchQuery.toLowerCase();
-    return iptvData.streams
+    return iptvData
       .filter((m: any) => m.name?.toLowerCase().includes(lowerQuery))
       .slice(0, 150);
-  }, [iptvData?.streams, searchQuery]);
+  }, [iptvData, searchQuery]);
 
   const handleSelectMovie = (movie: any) => {
     setSelectedMovie(movie);
-    setFinalVideoUrl(null); // Limpiamos la URL anterior
-    resolveUrlMutation.mutate({ 
-      streamId: movie.stream_id, 
-      extension: movie.container_extension 
-    });
   };
   
   const handleGoBack = () => {
     setSelectedMovie(null);
-    setFinalVideoUrl(null);
-    resolveUrlMutation.reset();
   }
 
-  const currentUrl = finalVideoUrl ? `${CORS_PROXY}${encodeURIComponent(finalVideoUrl)}` : null;
-
   if (selectedMovie) {
+    const videoUrl = getXtreamMovieUrl(selectedMovie.stream_id, selectedMovie.container_extension);
+    
     return (
       <Layout>
         <div className="space-y-6 min-h-screen bg-zinc-950 text-white p-4 rounded-3xl">
@@ -94,25 +46,10 @@ const Movies = () => {
           </div>
           
           <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl bg-black border border-white/5">
-            {resolveUrlMutation.isPending && (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-400 space-y-4">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p className="font-semibold">Obteniendo enlace seguro del video...</p>
-              </div>
-            )}
-            {resolveUrlMutation.isError && (
-              <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-4">
-                <ServerCrash className="h-12 w-12" />
-                <p className="font-semibold">No se pudo obtener el enlace del video.</p>
-                <p className="text-sm text-zinc-500">{resolveUrlMutation.error.message}</p>
-              </div>
-            )}
-            {resolveUrlMutation.isSuccess && currentUrl && (
-              <VideoPlayer 
-                url={currentUrl} 
-                serverName="Servidor Final"
-              />
-            )}
+            <VideoPlayer 
+              url={videoUrl} 
+              serverName="Servidor Directo"
+            />
           </div>
 
           <div className="p-8 flex flex-col md:flex-row gap-8 items-start">
@@ -133,16 +70,8 @@ const Movies = () => {
               <h1 className="text-4xl font-black">{selectedMovie.name}</h1>
               <div className="flex items-center gap-4 mt-2 text-zinc-400">
                 {selectedMovie.rating && <span>⭐ {selectedMovie.rating}</span>}
-                <span className="text-primary font-bold">Servidor Premium (Xtream)</span>
+                <span className="text-primary font-bold">Servidor Premium (Directo)</span>
               </div>
-              
-              {finalVideoUrl && (
-                <div className="mt-8 p-4 bg-white/5 rounded-xl border border-white/10 inline-block max-w-full">
-                  <p className="text-xs text-zinc-500 font-mono break-all">
-                    <span className="text-green-400 font-bold flex items-center gap-2"><Link className="h-3 w-3"/> URL FINAL (resuelta):</span> {finalVideoUrl}
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -157,7 +86,7 @@ const Movies = () => {
           <div className="space-y-1">
             <h1 className="text-5xl font-black tracking-tighter italic">AURA <span className="text-primary not-italic">CINE</span></h1>
             <p className="text-zinc-500 text-sm font-medium">
-              {iptvData?.streams ? `${iptvData.streams.length} películas disponibles` : 'Cargando catálogo...'}
+              {iptvData ? `${iptvData.length} películas disponibles` : 'Cargando catálogo...'}
             </p>
           </div>
           <div className="bg-white/5 backdrop-blur-xl p-3 rounded-2xl flex items-center gap-3 border border-white/10 w-full md:w-80">
@@ -183,6 +112,11 @@ const Movies = () => {
             <div className="flex flex-col items-center justify-center py-32 space-y-4">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
               <p className="text-zinc-500 animate-pulse">Sincronizando miles de películas...</p>
+            </div>
+          ) : error ? (
+             <div className="py-20 text-center text-red-400">
+              <p>Error al cargar el catálogo de películas.</p>
+              <p className="text-sm text-zinc-500">{(error as Error).message}</p>
             </div>
           ) : filteredMovies.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">

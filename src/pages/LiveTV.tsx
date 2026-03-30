@@ -1,22 +1,15 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQueries } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Loader2, Globe, Tv, ShieldCheck } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { ArrowLeft, Loader2, Tv, ShieldCheck } from "lucide-react";
+import { getXtreamLiveUrl, xtreamApiRequest } from "@/hooks/useXtream";
 
 interface MergedChannel {
   id: string | number;
@@ -26,43 +19,26 @@ interface MergedChannel {
   country: string;
 }
 
-const CORS_PROXY = "https://api.allorigins.win/raw?url=";
-
 const LiveTV = () => {
-  const [activeTab, setActiveTab] = useState("xtream"); // Xtream por defecto
+  const [activeTab, setActiveTab] = useState("xtream");
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [currentChannel, setCurrentChannel] = useState<MergedChannel | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
-  // Query para canales Xtream usando la Edge Function
-  const { data: xtreamResult, isLoading: loadingXtream, error: xtreamError } = useQuery({
-    queryKey: ["xtreamData"],
-    queryFn: async () => {
-      const fetchFromProxy = async (action: string) => {
-        const { data, error } = await supabase.functions.invoke('xtream-proxy', {
-          body: { action }
-        });
-        if (error) throw error;
-        return data;
-      };
-
-      const [catsRes, streamsRes] = await Promise.all([
-        fetchFromProxy("get_live_categories"),
-        fetchFromProxy("get_live_streams")
-      ]);
-
-      return { 
-        categories: catsRes.data, 
-        streams: streamsRes.data,
-        creds: catsRes.credentials
-      };
-    },
-    staleTime: 1000 * 60 * 30, // 30 minutos
+  const results = useQueries({
+    queries: [
+      { queryKey: ['xtreamData', 'get_live_categories'], queryFn: () => xtreamApiRequest('get_live_categories'), staleTime: 1000 * 60 * 60 },
+      { queryKey: ['xtreamData', 'get_live_streams'], queryFn: () => xtreamApiRequest('get_live_streams'), staleTime: 1000 * 60 * 60 },
+    ]
   });
 
+  const { data: categories, isLoading: loadingCats, error: catsError } = results[0];
+  const { data: streams, isLoading: loadingStreams, error: streamsError } = results[1];
+
+  const loadingXtream = loadingCats || loadingStreams;
+  const xtreamError = catsError || streamsError;
+
   const filteredGroups = useMemo(() => {
-    if (!xtreamResult) return [];
-    const { categories, streams, creds } = xtreamResult;
+    if (!categories || !streams || !Array.isArray(categories) || !Array.isArray(streams)) return [];
     
     return categories.map((cat: any) => ({
       name: cat.category_name,
@@ -73,11 +49,11 @@ const LiveTV = () => {
           id: s.stream_id,
           name: s.name,
           logo: s.stream_icon || "/placeholder.svg",
-          url: `${creds.server}/live/${creds.user}/${creds.pass}/${s.stream_id}.m3u8`,
+          url: getXtreamLiveUrl(s.stream_id),
           country: cat.category_name
         }))
     })).filter((g: any) => g.channels.length > 0);
-  }, [xtreamResult]);
+  }, [categories, streams]);
 
   const activeChannels = useMemo(() => {
     if (!selectedGroup) return [];
@@ -85,7 +61,7 @@ const LiveTV = () => {
     return group?.channels || [];
   }, [selectedGroup, filteredGroups]);
 
-  const currentVideoUrl = currentChannel ? `${CORS_PROXY}${encodeURIComponent(currentChannel.url)}` : "";
+  const currentVideoUrl = currentChannel ? currentChannel.url : "";
 
   return (
     <Layout>
@@ -100,7 +76,7 @@ const LiveTV = () => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[300px]">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="xtream">Canales Privados</TabsTrigger>
-              <TabsTrigger value="public">Públicos</TabsTrigger>
+              <TabsTrigger value="public" disabled>Públicos</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -117,7 +93,7 @@ const LiveTV = () => {
                 </span>
               )}
             </div>
-            <Card className="overflow-hidden border-2 shadow-xl bg-black">
+            <Card className="overflow-hidden border-2 shadow-xl bg-black aspect-video">
               <VideoPlayer 
                 url={currentVideoUrl} 
               />
@@ -134,7 +110,7 @@ const LiveTV = () => {
               <Card className="border-destructive">
                 <CardContent className="p-6 text-center">
                   <p className="text-destructive font-bold">Error de conexión</p>
-                  <p className="text-sm text-muted-foreground mt-2">No se pudo acceder a los canales. Revisa la contraseña en la función de Supabase.</p>
+                  <p className="text-sm text-muted-foreground mt-2">No se pudo acceder a los canales. El proxy o el servidor pueden estar caídos.</p>
                 </CardContent>
               </Card>
             ) : (
