@@ -1,7 +1,6 @@
-Xtream y estética premium.">
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
@@ -104,12 +103,12 @@ const Movies = () => {
       <div className="space-y-12">
         <header className="flex flex-col gap-6">
           <div className="flex items-center justify-between">
-            <h1 className="text-5xl font-black tracking-tighter">CINE</h1>
+            <h1 className="text-5xl font-black tracking-tighter text-white">CINE</h1>
             <div className="bg-white/10 backdrop-blur-md p-2 rounded-full px-6 flex items-center gap-3 border border-white/5">
               <Search className="h-5 w-5 text-white/50" />
               <input 
                 placeholder="Buscar en Aura TV..." 
-                className="bg-transparent border-none outline-none text-lg w-64"
+                className="bg-transparent border-none outline-none text-lg w-64 text-white"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
