@@ -7,7 +7,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Manejo de preflight CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -17,59 +16,53 @@ serve(async (req) => {
     const videoUrl = url.searchParams.get('url');
 
     if (!videoUrl) {
-      return new Response(JSON.stringify({ error: "URL de video no proporcionada" }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(JSON.stringify({ error: "URL de video no proporcionada" }), { status: 400 });
     }
 
-    // Preparamos las cabeceras para engañar al CDN
+    console.log("[video-proxy] Iniciando túnel para:", videoUrl);
+
+    // Cabeceras de engaño para el CDN final
     const headers = new Headers({
-      'User-Agent': 'IPTVSmarters/1.0.0', // EL CDN CREE QUE ES LA APP OFICIAL
+      'User-Agent': 'IPTVSmarters/1.0.0',
       'Accept': '*/*',
-      'Referer': '', // REFERER VACÍO PARA MÁXIMO ANONIMATO
+      'Referer': '', // Referer vacío como pediste
       'Connection': 'keep-alive'
     });
 
-    // Reenviamos la cabecera Range para permitir el "seeking" en 4K
     const range = req.headers.get('range');
-    if (range) {
-      headers.set('range', range);
-    }
+    if (range) headers.set('range', range);
 
-    // Petición al servidor/CDN original
+    // Petición al servidor inicial (redireccionará a limitedcdn.com)
     const response = await fetch(videoUrl, { 
       headers,
-      redirect: 'follow' // SIGUE AUTOMÁTICAMENTE LA REDIRECCIÓN A LIMITEDCDN.COM
+      redirect: 'follow' // SIGUE EL SALTO A HTTPS://LIMITEDCDN.COM AUTOMÁTICAMENTE
     });
 
-    // Construimos las cabeceras de respuesta para el navegador
+    console.log("[video-proxy] CDN respondió con status:", response.status, "URL Final:", response.url);
+
     const responseHeaders = new Headers(corsHeaders);
     
-    // Mapeamos cabeceras críticas del servidor original
-    const criticalHeaders = ['content-type', 'content-length', 'accept-ranges', 'content-range'];
-    response.headers.forEach((value, key) => {
-      if (criticalHeaders.includes(key.toLowerCase())) {
-        responseHeaders.set(key, value);
-      }
+    // Copiamos las cabeceras vitales para que el reproductor web pueda funcionar
+    ['content-type', 'content-length', 'accept-ranges', 'content-range'].forEach(h => {
+      const val = response.headers.get(h);
+      if (val) responseHeaders.set(h, val);
     });
 
-    // Forzamos el tipo de video si es necesario para el navegador
+    // Si el CDN no dice qué es, le decimos al navegador que es video matroska/mkv
     if (!responseHeaders.has('content-type')) {
       responseHeaders.set('content-type', 'video/x-matroska');
     }
 
-    // Retornamos el flujo de datos (stream) directamente sin procesar
     return new Response(response.body, {
       status: response.status,
       headers: responseHeaders,
     });
 
   } catch (error) {
-    console.error("[video-proxy] Error en el túnel:", error.message);
-    return new Response(JSON.stringify({ error: "Error en el túnel de video 4K" }), {
+    console.error("[video-proxy] Error crítico:", error.message);
+    return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    });
   }
 })

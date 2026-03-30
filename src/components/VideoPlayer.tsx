@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, MonitorPlay, RefreshCw } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Loader2, MonitorPlay, RefreshCw, Info } from "lucide-react";
 
 interface VideoPlayerProps {
   url: string;
@@ -21,22 +20,20 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
     setError(null);
     
     /**
-     * Como estamos en Web, usamos el Túnel de Streaming de Supabase.
-     * Este túnel inyecta el User-Agent 'IPTVSmarters/1.0.0' que el CDN exige.
+     * Túnel de Supabase que resuelve la redirección de http -> https
+     * e inyecta los headers requeridos por limitedcdn.com
      */
     const proxyUrl = `https://vspullgchtzqgdclqjaw.supabase.co/functions/v1/video-proxy?url=${encodeURIComponent(url)}`;
     video.src = proxyUrl;
     
     const handleCanPlay = () => {
       setIsLoading(false);
-      video.play().catch((e) => {
-        console.warn("[VideoPlayer] Autoplay bloqueado:", e);
-      });
+      video.play().catch(e => console.warn("Autoplay bloqueado", e));
     };
 
     const handleError = () => {
-      console.error("[VideoPlayer] Error de carga:", video.error);
-      setError("El CDN ha rechazado la conexión. Es posible que el enlace haya caducado.");
+      console.error("Error en Video:", video.error);
+      setError("El CDN ha rechazado la conexión o el formato MKV no es compatible con este navegador.");
       setIsLoading(false);
     };
 
@@ -60,10 +57,13 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
       />
       
       {isLoading && !error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-10 p-6 text-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-white font-black tracking-widest text-[10px] uppercase animate-pulse">
-            Sincronizando Túnel 4K MKV
+          <p className="text-white font-black tracking-widest text-xs uppercase animate-pulse">
+            Resolviendo Redirección a LimitedCDN...
+          </p>
+          <p className="text-zinc-500 text-[10px] mt-2 max-w-xs">
+            Estamos conectando el túnel seguro para saltar la protección del servidor 4K.
           </p>
         </div>
       )}
@@ -71,16 +71,18 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 p-8 text-center z-20">
           <MonitorPlay className="h-16 w-16 text-destructive mb-6" />
-          <h3 className="text-white text-xl font-black mb-2">ERROR DE CARGA CDN</h3>
+          <h3 className="text-white text-xl font-black mb-2">BLOQUEO DE CONTENIDO</h3>
           <p className="text-zinc-500 text-sm max-w-sm mb-6">
-            El túnel no pudo saltar la protección del CDN o el formato MKV no es compatible con este navegador.
+            El CDN final bloqueó la petición o tu navegador no soporta el contenedor MKV nativamente.
           </p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl transition-all"
-          >
-            <RefreshCw className="h-4 w-4" /> Reintentar
-          </button>
+          <div className="flex gap-4">
+            <button 
+              onClick={() => window.location.reload()}
+              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl transition-all"
+            >
+              <RefreshCw className="h-4 w-4" /> Reintentar
+            </button>
+          </div>
         </div>
       )}
     </div>
