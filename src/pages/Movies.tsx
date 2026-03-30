@@ -1,23 +1,22 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
 import ContentCard from "@/components/ContentCard";
-import { Loader2, Search, ArrowLeft, AlertCircle, ServerCrash, Film } from "lucide-react";
+import { Loader2, Search, ArrowLeft, AlertCircle, ServerCrash, Film, Link } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 
-const MOVIE_SERVER_URL = "http://kytv.xyz";
 const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
+  const [finalVideoUrl, setFinalVideoUrl] = useState<string | null>(null);
 
-  const { data: iptvData, isLoading } = useQuery({
+  const { data: iptvData, isLoading: isLoadingList } = useQuery({
     queryKey: ["xtreamVodCache"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('xtream-proxy', {
@@ -32,6 +31,25 @@ const Movies = () => {
     staleTime: 1000 * 60 * 60, // Cache de 1 hora
   });
 
+  const resolveUrlMutation = useMutation({
+    mutationFn: async (streamId: string) => {
+      const { data, error } = await supabase.functions.invoke('xtream-proxy', {
+        body: { action: "get_vod_url", stream_id: streamId }
+      });
+      if (error) throw new Error(error.message);
+      if (!data.finalUrl) throw new Error("La función no devolvió una URL final.");
+      return data.finalUrl;
+    },
+    onSuccess: (url) => {
+      setFinalVideoUrl(url);
+      toast.success("Enlace de video obtenido. Iniciando reproducción.");
+    },
+    onError: (error) => {
+      toast.error(`Error al obtener el enlace: ${error.message}`);
+      setFinalVideoUrl(null);
+    }
+  });
+
   const filteredMovies = useMemo(() => {
     if (!iptvData?.streams) return [];
     if (!searchQuery) return iptvData.streams.slice(0, 150);
@@ -43,15 +61,17 @@ const Movies = () => {
 
   const handleSelectMovie = (movie: any) => {
     setSelectedMovie(movie);
+    setFinalVideoUrl(null); // Limpiamos la URL anterior
+    resolveUrlMutation.mutate(movie.stream_id); // Pedimos la nueva URL
   };
-
-  // Construye la URL real y luego la pasa por el proxy
-  // CAMBIO CLAVE: Usamos .m3u8 en lugar de .mp4 para poder usar hlsOptions y el User-Agent
-  const rawMovieUrl = selectedMovie && iptvData?.creds
-    ? `${MOVIE_SERVER_URL}/movie/${iptvData.creds.user}/${iptvData.creds.pass}/${selectedMovie.stream_id}.m3u8`
-    : null;
   
-  const currentUrl = rawMovieUrl ? `${CORS_PROXY}${encodeURIComponent(rawMovieUrl)}` : null;
+  const handleGoBack = () => {
+    setSelectedMovie(null);
+    setFinalVideoUrl(null);
+    resolveUrlMutation.reset();
+  }
+
+  const currentUrl = finalVideoUrl ? `${CORS_PROXY}${encodeURIComponent(finalVideoUrl)}` : null;
 
   if (selectedMovie) {
     return (
@@ -59,7 +79,7 @@ const Movies = () => {
         <div className="space-y-6 min-h-screen bg-zinc-950 text-white p-4 rounded-3xl">
           <div className="flex items-center justify-between">
             <button 
-              onClick={() => setSelectedMovie(null)}
+              onClick={handleGoBack}
               className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors p-2"
             >
               <ArrowLeft className="h-5 w-5" /> Volver al Catálogo
@@ -67,16 +87,24 @@ const Movies = () => {
           </div>
           
           <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl bg-black border border-white/5">
-            {currentUrl ? (
+            {resolveUrlMutation.isPending && (
+              <div className="flex flex-col items-center justify-center h-full text-zinc-400 space-y-4">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="font-semibold">Obteniendo enlace seguro del video...</p>
+              </div>
+            )}
+            {resolveUrlMutation.isError && (
+              <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-4">
+                <ServerCrash className="h-12 w-12" />
+                <p className="font-semibold">No se pudo obtener el enlace del video.</p>
+                <p className="text-sm text-zinc-500">{resolveUrlMutation.error.message}</p>
+              </div>
+            )}
+            {resolveUrlMutation.isSuccess && currentUrl && (
               <VideoPlayer 
                 url={currentUrl} 
-                serverName={MOVIE_SERVER_URL}
+                serverName="Servidor Final"
               />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-500">
-                <AlertCircle className="h-12 w-12 mb-4 opacity-50" />
-                <p>Error al generar el enlace de la película.</p>
-              </div>
             )}
           </div>
 
@@ -99,15 +127,12 @@ const Movies = () => {
               <div className="flex items-center gap-4 mt-2 text-zinc-400">
                 {selectedMovie.rating && <span>⭐ {selectedMovie.rating}</span>}
                 <span className="text-primary font-bold">Servidor Premium (Xtream)</span>
-                <span className="uppercase text-xs border border-zinc-700 px-2 py-1 rounded">
-                  M3U8
-                </span>
               </div>
               
-              {rawMovieUrl && (
-                <div className="mt-8 p-4 bg-white/5 rounded-xl border border-white/10 inline-block">
+              {finalVideoUrl && (
+                <div className="mt-8 p-4 bg-white/5 rounded-xl border border-white/10 inline-block max-w-full">
                   <p className="text-xs text-zinc-500 font-mono break-all">
-                    <span className="text-primary font-bold">URL (sin Proxy):</span> {rawMovieUrl.replace(iptvData?.creds.pass, '***')}
+                    <span className="text-green-400 font-bold flex items-center gap-2"><Link className="h-3 w-3"/> URL FINAL (resuelta):</span> {finalVideoUrl}
                   </p>
                 </div>
               )}
@@ -147,7 +172,7 @@ const Movies = () => {
             </h2>
           </div>
           
-          {isLoading ? (
+          {isLoadingList ? (
             <div className="flex flex-col items-center justify-center py-32 space-y-4">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
               <p className="text-zinc-500 animate-pulse">Sincronizando miles de películas...</p>

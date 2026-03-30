@@ -18,17 +18,43 @@ serve(async (req) => {
   }
 
   try {
-    const { action } = await req.json()
+    const { action, stream_id } = await req.json()
     const USER = "7882659395"
-    const PASS = "2438687584" // Usando la contraseña real proporcionada
-
-    let lastError = null;
-    let successfulData = null;
-    let workingServer = null;
+    const PASS = "2438687584"
 
     const requestHeaders = {
       'User-Agent': 'IPTVSmarters/1.0.0 (iPad; iPhone; iOS)',
     };
+
+    // Nueva acción para resolver la URL de VOD
+    if (action === 'get_vod_url') {
+      if (!stream_id) throw new Error("Se requiere stream_id para get_vod_url");
+
+      const initialUrl = `${SERVERS[0]}/movie/${USER}/${PASS}/${stream_id}.mp4`;
+      console.log(`[xtream-proxy] Resolviendo URL: ${initialUrl}`);
+
+      const response = await fetch(initialUrl, {
+        method: 'HEAD', // Usamos HEAD para no descargar el video, solo las cabeceras
+        redirect: 'manual', // ¡Clave! No seguimos la redirección automáticamente
+        headers: requestHeaders,
+      });
+
+      // La URL final está en la cabecera 'location' de la respuesta de redirección
+      const finalUrl = response.headers.get('location');
+      if (!finalUrl) {
+        throw new Error("No se encontró la URL de redirección. El servidor no redirigió.");
+      }
+      
+      console.log(`[xtream-proxy] URL final resuelta: ${finalUrl}`);
+      return new Response(JSON.stringify({ finalUrl }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Lógica existente para obtener listas
+    let lastError = null;
+    let successfulData = null;
+    let workingServer = null;
 
     for (const server of SERVERS) {
       try {
