@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
-import { Loader2, Smartphone, MonitorPlay } from "lucide-react";
+import { Loader2, MonitorPlay, RefreshCw } from "lucide-react";
+import { getVideoProxyUrl } from "@/hooks/useXtream";
 
 interface VideoPlayerProps {
   url: string;
@@ -12,51 +13,62 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [usingProxy, setUsingProxy] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState(url);
+
+  useEffect(() => {
+    setCurrentUrl(url);
+    setUsingProxy(false);
+    setError(null);
+  }, [url]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !url) return;
+    if (!video || !currentUrl) return;
 
     setIsLoading(true);
-    setError(null);
-
-    // Si es un stream HLS (.m3u8 o .ts adaptativo)
-    if (url.includes(".m3u8") || url.includes(".ts")) {
+    
+    // Configuración para HLS (.ts o .m3u8)
+    if (currentUrl.includes(".m3u8") || (currentUrl.includes(".ts") && !usingProxy)) {
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
-          lowLatencyMode: true,
+          xhrSetup: (xhr) => {
+            xhr.withCredentials = false;
+          }
         });
-        hls.loadSource(url);
+        hls.loadSource(currentUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setIsLoading(false);
-          video.play().catch(console.warn);
+          video.play().catch(() => {});
         });
         hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) {
-            setError(`Fallo HLS: ${data.type}`);
-            setIsLoading(false);
+          if (data.fatal && !usingProxy) {
+            console.log("[VideoPlayer] HLS falló, intentando proxy...");
+            handleRetryWithProxy();
           }
         });
         return () => hls.destroy();
-      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Soporte nativo de Safari/Android Webview para HLS
-        video.src = url;
       }
-    } else {
-      // Para .mkv, .mp4 o streams directos (Aprovecha Hardware Accel)
-      video.src = url;
     }
 
+    // Carga directa para MKV/MP4
+    video.src = currentUrl;
+    
     const handleCanPlay = () => {
       setIsLoading(false);
-      video.play().catch(console.warn);
+      video.play().catch(() => {});
     };
 
     const handleError = () => {
-      setError("Error de decodificación. Verifica los permisos de red (Cleartext).");
-      setIsLoading(false);
+      if (!usingProxy) {
+        console.log("[VideoPlayer] Error de carga inicial, intentando túnel proxy...");
+        handleRetryWithProxy();
+      } else {
+        setError("El servidor IPTV no responde ni a través del túnel de seguridad.");
+        setIsLoading(false);
+      }
     };
 
     video.addEventListener("canplay", handleCanPlay);
@@ -65,10 +77,13 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
     return () => {
       video.removeEventListener("canplay", handleCanPlay);
       video.removeEventListener("error", handleError);
-      video.pause();
-      video.src = "";
     };
-  }, [url]);
+  }, [currentUrl, usingProxy]);
+
+  const handleRetryWithProxy = () => {
+    setUsingProxy(true);
+    setCurrentUrl(getVideoProxyUrl(url));
+  };
 
   return (
     <div className="relative w-full h-full bg-black rounded-3xl overflow-hidden shadow-2xl group border-4 border-white/5 focus-within:border-primary transition-all">
@@ -77,21 +92,35 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
         className="w-full h-full object-contain"
         controls
         playsInline
-        preload="auto"
+        crossOrigin="anonymous"
       />
       
       {isLoading && !error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10">
-          <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-          <p className="text-white font-black tracking-widest text-xs uppercase animate-pulse">Sincronizando 4K</p>
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-white font-black tracking-widest text-[10px] uppercase animate-pulse">
+            {usingProxy ? "Conectando vía Túnel Seguro" : "Sincronizando 4K MKV"}
+          </p>
         </div>
       )}
 
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 p-8 text-center z-20">
           <MonitorPlay className="h-16 w-16 text-destructive mb-6" />
-          <h3 className="text-white text-xl font-black mb-2">STREAM BLOQUEADO</h3>
-          <p className="text-zinc-500 text-sm max-w-sm">{error}</p>
+          <h3 className="text-white text-xl font-black mb-2">ERROR DE CONEXIÓN</h3>
+          <p className="text-zinc-500 text-sm max-w-sm mb-6">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl transition-all"
+          >
+            <RefreshCw className="h-4 w-4" /> Reintentar todo
+          </button>
+        </div>
+      )}
+
+      {usingProxy && !isLoading && !error && (
+        <div className="absolute top-4 right-4 bg-yellow-500/20 border border-yellow-500/50 text-yellow-500 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-tighter backdrop-blur-md">
+          Modo Compatibilidad Activo
         </div>
       )}
     </div>
