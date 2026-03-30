@@ -2,18 +2,28 @@
 
 import ReactPlayer from "react-player";
 import { useState, useEffect } from "react";
-import { Loader2, AlertCircle, ShieldAlert } from "lucide-react";
+import { Loader2, AlertCircle, ShieldAlert, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface VideoPlayerProps {
   url: string;
+  onNextServer?: () => void;
+  serverName?: string;
 }
 
-const VideoPlayer = ({ url }: VideoPlayerProps) => {
+const VideoPlayer = ({ url, onNextServer, serverName }: VideoPlayerProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [showMixedContentWarning, setShowMixedContentWarning] = useState(false);
 
-  // Si se queda cargando más de 8 segundos, probablemente sea un bloqueo de Mixed Content (HTTP en HTTPS)
+  // Resetear estados cuando cambia la URL (al cambiar de servidor)
+  useEffect(() => {
+    setIsLoading(true);
+    setHasError(false);
+    setShowMixedContentWarning(false);
+  }, [url]);
+
+  // Detector de Mixed Content o Timeout
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     if (isLoading && url) {
@@ -30,6 +40,7 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
     <div className="relative w-full h-full bg-black group rounded-3xl overflow-hidden">
       {url ? (
         <ReactPlayer
+          key={url} // Fuerza a recargar el componente si cambia la URL
           url={url}
           controls
           playing
@@ -54,8 +65,7 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
               },
               hlsOptions: {
                 xhrSetup: function(xhr: any) {
-                  // Forzamos el User-Agent para evitar bloqueos 403 del servidor Xtream
-                  xhr.setRequestHeader('User-Agent', 'IPTVSmarters/1.0');
+                  xhr.setRequestHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
                 }
               }
             }
@@ -72,34 +82,39 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-6" />
           
           {!showMixedContentWarning ? (
-            <p className="text-white font-bold tracking-widest text-sm uppercase">Conectando a Xtream Codes...</p>
+            <p className="text-white font-bold tracking-widest text-sm uppercase">
+              Conectando a {serverName || "Servidor"}...
+            </p>
           ) : (
-            <div className="bg-yellow-500/10 border border-yellow-500/50 p-4 rounded-xl max-w-md">
-              <ShieldAlert className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
-              <p className="text-yellow-500 font-bold mb-1">Posible bloqueo de seguridad del navegador</p>
-              <p className="text-zinc-300 text-xs">
-                Tu servidor IPTV usa <b>HTTP</b> pero la app está en <b>HTTPS</b>. <br/><br/>
-                Para ver el video, haz clic en el <b>icono del candado</b> en la barra de direcciones de tu navegador, ve a "Configuración del sitio" y permite el <b>"Contenido no seguro" (Insecure content)</b>.
+            <div className="bg-yellow-500/10 border border-yellow-500/50 p-6 rounded-xl max-w-md flex flex-col items-center">
+              <ShieldAlert className="h-10 w-10 text-yellow-500 mb-4" />
+              <p className="text-yellow-500 font-bold mb-2 text-lg">Bloqueo de Seguridad (HTTPS)</p>
+              <p className="text-zinc-300 text-sm mb-6">
+                Tu navegador está bloqueando el video porque el servidor es HTTP. Haz clic en el candado de la barra de direcciones y permite el <b>Contenido no seguro</b>.
               </p>
+              {onNextServer && (
+                <Button onClick={onNextServer} className="w-full bg-yellow-600 hover:bg-yellow-700 text-white">
+                  <RefreshCw className="mr-2 h-4 w-4" /> Intentar con otro servidor
+                </Button>
+              )}
             </div>
           )}
-          
-          <div className="mt-8 text-xs text-zinc-600 font-mono break-all bg-black/50 p-2 rounded">
-            Intentando cargar: {url}
-          </div>
         </div>
       )}
 
       {hasError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 z-20 p-8 text-center">
-          <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-          <h3 className="text-xl font-bold mb-2">Error de Reproducción</h3>
-          <p className="text-muted-foreground text-sm max-w-md mb-4">
-            El servidor rechazó la conexión o el formato no es compatible.
+          <AlertCircle className="h-16 w-16 text-destructive mb-4" />
+          <h3 className="text-2xl font-bold mb-2 text-white">Error de Reproducción</h3>
+          <p className="text-zinc-400 text-sm max-w-md mb-8">
+            El servidor {serverName} no responde o el formato no es compatible.
           </p>
-          <div className="text-xs text-zinc-500 font-mono break-all bg-black/30 p-3 rounded-lg">
-            URL Fallida: {url}
-          </div>
+          
+          {onNextServer && (
+            <Button onClick={onNextServer} size="lg" className="bg-primary hover:bg-primary/80 text-white">
+              <RefreshCw className="mr-2 h-5 w-5" /> Cambiar de Servidor
+            </Button>
+          )}
         </div>
       )}
     </div>

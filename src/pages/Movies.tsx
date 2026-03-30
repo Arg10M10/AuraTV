@@ -1,21 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
 import ContentCard from "@/components/ContentCard";
-import { Loader2, Search, ArrowLeft, AlertCircle } from "lucide-react";
+import { Loader2, Search, ArrowLeft, AlertCircle, ServerCrash } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { findBestIptvMatch } from "@/lib/iptv-match";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+
+// Lista de servidores extraída de tu configuración
+const SERVERS = [
+  "http://kytv.xyz",
+  "http://cdn-ky.com",
+  "http://name-port.to"
+];
 
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
-  const [xtreamUrl, setXtreamUrl] = useState<string | null>(null);
+  const [streamData, setStreamData] = useState<{ id: string | number, ext: string, user: string, pass: string } | null>(null);
+  const [serverIndex, setServerIndex] = useState(0);
 
-  // 1. Carga de TMDB (Interfaz Visual)
+  // 1. Carga de TMDB
   const { data: tmdbMovies, isLoading: loadingTmdb } = useQuery({
     queryKey: ["tmdbMovies", searchQuery],
     queryFn: async () => {
@@ -28,7 +37,7 @@ const Movies = () => {
     },
   });
 
-  // 2. Carga Silenciosa del Catálogo IPTV
+  // 2. Carga del Catálogo IPTV (VOD)
   const { data: iptvData } = useQuery({
     queryKey: ["xtreamVodCache"],
     queryFn: async () => {
@@ -44,37 +53,23 @@ const Movies = () => {
     staleTime: 1000 * 60 * 60,
   });
 
-  // 3. Lógica de Matching y Debug Profundo
+  // 3. Lógica de Matching
   const handleSelectMovie = (movie: any) => {
     setSelectedMovie(movie);
-    setXtreamUrl(null);
+    setStreamData(null);
+    setServerIndex(0); // Reiniciar al primer servidor
     
     if (iptvData?.streams && iptvData?.creds) {
       const match = findBestIptvMatch(movie.title, movie.release_date, iptvData.streams);
       
       if (match) {
-        const { server, user, pass } = iptvData.creds;
-        const extension = match.container_extension || "mp4";
-        
-        // Construcción de la URL Directa (SIN PROXY)
-        const rawUrl = `${server}/movie/${user}/${pass}/${match.stream_id}.${extension}`;
-        
-        // ==========================================
-        // DEBUG PROFUNDO EN CONSOLA
-        // ==========================================
-        console.log("🔴 DEBUG PROFUNDO - XTREAM CODES 🔴");
-        console.log("1. Servidor (Host:Puerto):", server);
-        console.log("2. Usuario:", user);
-        console.log("3. Password:", pass ? "***OCULTO***" : "VACÍO");
-        console.log("4. Stream ID:", match.stream_id);
-        console.log("5. Extensión:", extension);
-        console.log("▶️ URL FINAL A REPRODUCIR:", rawUrl);
-        console.log("==========================================");
-
-        // Usamos la URL directa. El proxy rompe el streaming de video.
-        setXtreamUrl(rawUrl);
+        setStreamData({
+          id: match.stream_id,
+          ext: match.container_extension || "mp4",
+          user: iptvData.creds.user,
+          pass: iptvData.creds.pass
+        });
       } else {
-        console.warn("❌ Película no encontrada en Xtream:", movie.title);
         toast.error("Esta película no está disponible en tu servidor premium.");
       }
     } else {
@@ -82,22 +77,48 @@ const Movies = () => {
     }
   };
 
+  const handleNextServer = () => {
+    const nextIndex = (serverIndex + 1) % SERVERS.length;
+    setServerIndex(nextIndex);
+    toast.success(`Cambiando al servidor: ${SERVERS[nextIndex]}`);
+  };
+
+  // Generar URL dinámica basada en el servidor actual
+  const currentUrl = streamData 
+    ? `${SERVERS[serverIndex]}/movie/${streamData.user}/${streamData.pass}/${streamData.id}.${streamData.ext}`
+    : null;
+
   if (selectedMovie) {
     return (
       <Layout>
         <div className="space-y-6 min-h-screen bg-zinc-950 text-white p-4 rounded-3xl">
           <div className="flex items-center justify-between">
             <button 
-              onClick={() => { setSelectedMovie(null); setXtreamUrl(null); }}
+              onClick={() => { setSelectedMovie(null); setStreamData(null); }}
               className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors p-2"
             >
               <ArrowLeft className="h-5 w-5" /> Volver al Catálogo
             </button>
+            
+            {streamData && (
+              <Button 
+                variant="outline" 
+                className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                onClick={handleNextServer}
+              >
+                <ServerCrash className="mr-2 h-4 w-4" />
+                Cambiar Servidor ({serverIndex + 1}/{SERVERS.length})
+              </Button>
+            )}
           </div>
           
           <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl bg-black border border-white/5">
-            {xtreamUrl ? (
-              <VideoPlayer url={xtreamUrl} />
+            {currentUrl ? (
+              <VideoPlayer 
+                url={currentUrl} 
+                onNextServer={handleNextServer}
+                serverName={SERVERS[serverIndex]}
+              />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-zinc-500">
                 <AlertCircle className="h-12 w-12 mb-4 opacity-50" />
@@ -121,6 +142,14 @@ const Movies = () => {
               <p className="text-zinc-300 mt-6 max-w-3xl leading-relaxed">
                 {selectedMovie.overview || "Sin sinopsis disponible."}
               </p>
+              
+              {currentUrl && (
+                <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
+                  <p className="text-xs text-zinc-500 font-mono break-all">
+                    <span className="text-primary font-bold">URL Actual:</span> {currentUrl.replace(streamData.pass, '***')}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
