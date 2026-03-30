@@ -16,7 +16,7 @@ serve(async (req) => {
     const videoUrl = url.searchParams.get('url');
 
     if (!videoUrl) {
-      return new Response(JSON.stringify({ error: "El parámetro 'url' es requerido" }), {
+      return new Response(JSON.stringify({ error: "URL requerida" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -24,7 +24,7 @@ serve(async (req) => {
 
     const range = req.headers.get('Range');
     const headers = new Headers({
-      'User-Agent': 'IPTVSmarters/1.0.0 (iPad; iPhone; iOS)',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     });
     
     if (range) {
@@ -36,10 +36,9 @@ serve(async (req) => {
       redirect: 'follow'
     });
 
-    // Clonamos las cabeceras de CORS y añadimos las del servidor original
     const responseHeaders = new Headers(corsHeaders);
     
-    // Forward essential headers from the origin server
+    // Copiamos cabeceras esenciales del servidor de origen
     const headersToForward = ['content-type', 'content-length', 'accept-ranges', 'content-range'];
     response.headers.forEach((value, key) => {
       if (headersToForward.includes(key.toLowerCase())) {
@@ -47,13 +46,13 @@ serve(async (req) => {
       }
     });
 
-    // Si el servidor no devuelve content-type, intentamos inferirlo o poner uno genérico
-    if (!responseHeaders.has('content-type')) {
-      if (videoUrl.includes('.m3u8')) {
-        responseHeaders.set('content-type', 'application/x-mpegURL');
-      } else {
-        responseHeaders.set('content-type', 'video/mp4');
-      }
+    // Forzamos tipos de contenido si el servidor no los envía correctamente
+    if (videoUrl.includes('.m3u8')) {
+      responseHeaders.set('content-type', 'application/x-mpegURL');
+    } else if (videoUrl.includes('.ts')) {
+      responseHeaders.set('content-type', 'video/mp2t');
+    } else if (!responseHeaders.has('content-type')) {
+      responseHeaders.set('content-type', 'video/mp4');
     }
 
     return new Response(response.body, {

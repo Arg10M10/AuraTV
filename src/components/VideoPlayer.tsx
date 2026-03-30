@@ -15,7 +15,6 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
-  const [canPlay, setCanPlay] = useState(false);
   const playerRef = useRef<ReactPlayer>(null);
 
   useEffect(() => {
@@ -25,92 +24,75 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
   useEffect(() => {
     setIsLoading(true);
     setHasError(false);
-    setCanPlay(false);
-    
-    // Timeout de seguridad: si en 15 segundos no ha cargado, mostramos error
-    const timeout = setTimeout(() => {
-      if (isLoading && !canPlay && !hasError) {
-        setHasError(true);
-        setIsLoading(false);
-      }
-    }, 15000);
-
-    return () => clearTimeout(timeout);
   }, [url, retryKey]);
 
   const handleReady = () => {
     setIsLoading(false);
-    setCanPlay(true);
   };
 
   const handleError = (e: any) => {
-    console.error("🔴 Error en ReactPlayer:", e);
+    console.error("🔴 Error en VideoPlayer:", e);
     setIsLoading(false);
     setHasError(true);
-  };
-  
-  const handleRetry = () => {
-    setRetryKey(prevKey => prevKey + 1);
   };
 
   if (!isClient) return null;
 
+  // Determinamos si debemos forzar HLS (necesario para .ts y .m3u8 en navegadores)
+  const isHls = url.includes('.m3u8') || url.includes('.ts') || url.includes('/live/');
+
   return (
-    <div className="relative w-full h-full bg-black group rounded-3xl overflow-hidden">
+    <div className="relative w-full h-full bg-black rounded-3xl overflow-hidden shadow-2xl">
       {url ? (
         <ReactPlayer
           ref={playerRef}
-          key={retryKey}
+          key={`${url}-${retryKey}`}
           url={url}
           width="100%"
           height="100%"
-          playing={true} // Intentamos reproducir siempre
+          playing={true}
           controls={true}
           onReady={handleReady}
-          onStart={() => {
-            setIsLoading(false);
-            setCanPlay(true);
-          }}
-          onBuffer={() => setIsLoading(true)}
-          onBufferEnd={() => setIsLoading(false)}
+          onStart={() => setIsLoading(false)}
           onError={handleError}
           playsinline={true}
           config={{
             file: {
+              forceHLS: isHls,
               attributes: {
-                controlsList: 'nodownload',
-                preload: 'auto',
-                crossOrigin: "anonymous"
+                crossOrigin: "anonymous",
+                style: { objectFit: 'contain' }
               },
-              forceHLS: url.includes('.m3u8') || url.includes('/live/'),
+              hlsOptions: {
+                enableWorker: true,
+                lowLatencyMode: true,
+                backBufferLength: 90
+              }
             }
           }}
         />
       ) : (
-        <div className="flex items-center justify-center h-full text-white/20">
-          Esperando señal del servidor...
+        <div className="flex items-center justify-center h-full text-white/20 italic">
+          Esperando señal...
         </div>
       )}
 
       {isLoading && !hasError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-10 p-6 text-center">
-          <Loader2 className="h-16 w-16 animate-spin text-primary mb-6" />
-          <p className="text-white font-bold tracking-widest text-sm uppercase">
-            Sincronizando con {serverName || "Servidor"}...
-          </p>
-          <p className="text-white/40 text-xs mt-2">Esto puede tardar unos segundos dependiendo de tu conexión</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-10">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-white/60 text-sm animate-pulse">Conectando con {serverName || "Servidor Premium"}...</p>
         </div>
       )}
 
       {hasError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 z-20 p-8 text-center">
-          <AlertCircle className="h-16 w-16 text-destructive mb-4" />
-          <h3 className="text-2xl font-bold mb-2 text-white">Error de Conexión</h3>
-          <p className="text-zinc-400 text-sm max-w-md mb-8">
-            No se pudo establecer la conexión con el servidor de video. El enlace puede haber expirado o el servidor está saturado.
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 z-20 p-6 text-center">
+          <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+          <h3 className="text-lg font-bold text-white mb-2">Error de Reproducción</h3>
+          <p className="text-zinc-500 text-xs mb-6 max-w-xs">
+            El formato de video no es compatible o el servidor ha rechazado la conexión.
           </p>
-          <Button onClick={handleRetry} size="lg" className="bg-primary hover:bg-primary/80 text-white">
-            <RefreshCw className="mr-2 h-5 w-5" /> Reintentar Conexión
+          <Button onClick={() => setRetryKey(k => k + 1)} variant="outline" size="sm">
+            <RefreshCw className="mr-2 h-4 w-4" /> Reintentar
           </Button>
         </div>
       )}
