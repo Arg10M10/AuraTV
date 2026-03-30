@@ -46,8 +46,9 @@ const Movies = () => {
   };
 
   // Construye la URL real y luego la pasa por el proxy
+  // CAMBIO CLAVE: Usamos .m3u8 en lugar de .mp4 para poder usar hlsOptions y el User-Agent
   const rawMovieUrl = selectedMovie && iptvData?.creds
-    ? `${MOVIE_SERVER_URL}/movie/${iptvData.creds.user}/${iptvData.creds.pass}/${selectedMovie.stream_id}.mp4`
+    ? `${MOVIE_SERVER_URL}/movie/${iptvData.creds.user}/${iptvData.creds.pass}/${selectedMovie.stream_id}.m3u8`
     : null;
   
   const currentUrl = rawMovieUrl ? `${CORS_PROXY}${encodeURIComponent(rawMovieUrl)}` : null;
@@ -99,7 +100,7 @@ const Movies = () => {
                 {selectedMovie.rating && <span>⭐ {selectedMovie.rating}</span>}
                 <span className="text-primary font-bold">Servidor Premium (Xtream)</span>
                 <span className="uppercase text-xs border border-zinc-700 px-2 py-1 rounded">
-                  MP4
+                  M3U8
                 </span>
               </div>
               
