@@ -10,21 +10,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
-// Lista de servidores extraída de tu configuración
-const SERVERS = [
-  "http://kytv.xyz",
-  "http://cdn-ky.com",
-  "http://name-port.to"
-];
-
-const CORS_PROXY = "https://proxy.cors.sh/";
+const MOVIE_SERVER_URL = "http://kytv.xyz";
+const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
-  const [serverIndex, setServerIndex] = useState(0);
 
-  // Carga del Catálogo IPTV (VOD) directamente
   const { data: iptvData, isLoading } = useQuery({
     queryKey: ["xtreamVodCache"],
     queryFn: async () => {
@@ -40,14 +32,9 @@ const Movies = () => {
     staleTime: 1000 * 60 * 60, // Cache de 1 hora
   });
 
-  // Filtrado local súper rápido (limitado a 150 para no colapsar el navegador)
   const filteredMovies = useMemo(() => {
     if (!iptvData?.streams) return [];
-    
-    if (!searchQuery) {
-      return iptvData.streams.slice(0, 150);
-    }
-    
+    if (!searchQuery) return iptvData.streams.slice(0, 150);
     const lowerQuery = searchQuery.toLowerCase();
     return iptvData.streams
       .filter((m: any) => m.name?.toLowerCase().includes(lowerQuery))
@@ -56,19 +43,14 @@ const Movies = () => {
 
   const handleSelectMovie = (movie: any) => {
     setSelectedMovie(movie);
-    setServerIndex(0); // Reiniciar al primer servidor
   };
 
-  const handleNextServer = () => {
-    const nextIndex = (serverIndex + 1) % SERVERS.length;
-    setServerIndex(nextIndex);
-    toast.success(`Cambiando al servidor: ${SERVERS[nextIndex]}`);
-  };
-
-  // Generar URL dinámica con PROXY para evitar CORS
-  const currentUrl = selectedMovie && iptvData?.creds
-    ? `${CORS_PROXY}${SERVERS[serverIndex]}/movie/${iptvData.creds.user}/${iptvData.creds.pass}/${selectedMovie.stream_id}.${selectedMovie.container_extension || 'mp4'}`
+  // Construye la URL real y luego la pasa por el proxy
+  const rawMovieUrl = selectedMovie && iptvData?.creds
+    ? `${MOVIE_SERVER_URL}/movie/${iptvData.creds.user}/${iptvData.creds.pass}/${selectedMovie.stream_id}.mp4`
     : null;
+  
+  const currentUrl = rawMovieUrl ? `${CORS_PROXY}${encodeURIComponent(rawMovieUrl)}` : null;
 
   if (selectedMovie) {
     return (
@@ -81,23 +63,13 @@ const Movies = () => {
             >
               <ArrowLeft className="h-5 w-5" /> Volver al Catálogo
             </button>
-            
-            <Button 
-              variant="outline" 
-              className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
-              onClick={handleNextServer}
-            >
-              <ServerCrash className="mr-2 h-4 w-4" />
-              Cambiar Servidor ({serverIndex + 1}/{SERVERS.length})
-            </Button>
           </div>
           
           <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl bg-black border border-white/5">
             {currentUrl ? (
               <VideoPlayer 
                 url={currentUrl} 
-                onNextServer={handleNextServer}
-                serverName={SERVERS[serverIndex]}
+                serverName={MOVIE_SERVER_URL}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-zinc-500">
@@ -127,14 +99,14 @@ const Movies = () => {
                 {selectedMovie.rating && <span>⭐ {selectedMovie.rating}</span>}
                 <span className="text-primary font-bold">Servidor Premium (Xtream)</span>
                 <span className="uppercase text-xs border border-zinc-700 px-2 py-1 rounded">
-                  {selectedMovie.container_extension || 'MP4'}
+                  MP4
                 </span>
               </div>
               
-              {currentUrl && (
+              {rawMovieUrl && (
                 <div className="mt-8 p-4 bg-white/5 rounded-xl border border-white/10 inline-block">
                   <p className="text-xs text-zinc-500 font-mono break-all">
-                    <span className="text-primary font-bold">URL (con Proxy):</span> {currentUrl.replace(iptvData?.creds.pass, '***')}
+                    <span className="text-primary font-bold">URL (sin Proxy):</span> {rawMovieUrl.replace(iptvData?.creds.pass, '***')}
                   </p>
                 </div>
               )}

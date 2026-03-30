@@ -26,7 +26,7 @@ interface MergedChannel {
   country: string;
 }
 
-const CORS_PROXY = "https://proxy.cors.sh/";
+const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 const LiveTV = () => {
   const [activeTab, setActiveTab] = useState("xtream"); // Xtream por defecto
@@ -38,7 +38,6 @@ const LiveTV = () => {
   const { data: xtreamResult, isLoading: loadingXtream, error: xtreamError } = useQuery({
     queryKey: ["xtreamData"],
     queryFn: async () => {
-      // Obtenemos categorías y canales usando la función de Supabase
       const fetchFromProxy = async (action: string) => {
         const { data, error } = await supabase.functions.invoke('xtream-proxy', {
           body: { action }
@@ -55,13 +54,12 @@ const LiveTV = () => {
       return { 
         categories: catsRes.data, 
         streams: streamsRes.data,
-        creds: catsRes.credentials // Obtenemos las credenciales resueltas por la función
+        creds: catsRes.credentials
       };
     },
     staleTime: 1000 * 60 * 30, // 30 minutos
   });
 
-  // Procesamiento de datos para la UI de Xtream
   const filteredGroups = useMemo(() => {
     if (!xtreamResult) return [];
     const { categories, streams, creds } = xtreamResult;
@@ -75,7 +73,6 @@ const LiveTV = () => {
           id: s.stream_id,
           name: s.name,
           logo: s.stream_icon || "/placeholder.svg",
-          // Construimos la URL de video con las credenciales seguras
           url: `${creds.server}/live/${creds.user}/${creds.pass}/${s.stream_id}.m3u8`,
           country: cat.category_name
         }))
@@ -87,6 +84,8 @@ const LiveTV = () => {
     const group = filteredGroups.find((g: any) => (g.id || g.name) === selectedGroup);
     return group?.channels || [];
   }, [selectedGroup, filteredGroups]);
+
+  const currentVideoUrl = currentChannel ? `${CORS_PROXY}${encodeURIComponent(currentChannel.url)}` : "";
 
   return (
     <Layout>
@@ -119,9 +118,8 @@ const LiveTV = () => {
               )}
             </div>
             <Card className="overflow-hidden border-2 shadow-xl bg-black">
-              {/* Usamos el proxy solo para el video si hay problemas de CORS */}
               <VideoPlayer 
-                url={currentChannel ? `${CORS_PROXY}${currentChannel.url}` : ""} 
+                url={currentVideoUrl} 
               />
             </Card>
           </div>
@@ -136,7 +134,7 @@ const LiveTV = () => {
               <Card className="border-destructive">
                 <CardContent className="p-6 text-center">
                   <p className="text-destructive font-bold">Error de conexión</p>
-                  <p className="text-sm text-muted-foreground mt-2">No se pudo acceder a los canales. Revisa el secret XTREAM_PASSWORD en Supabase.</p>
+                  <p className="text-sm text-muted-foreground mt-2">No se pudo acceder a los canales. Revisa la contraseña en la función de Supabase.</p>
                 </CardContent>
               </Card>
             ) : (
