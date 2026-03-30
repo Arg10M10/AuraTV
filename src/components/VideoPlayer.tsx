@@ -38,8 +38,9 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
 
   if (!isClient) return null;
 
-  // Determinamos si debemos forzar HLS (necesario para .ts y .m3u8 en navegadores)
-  const isHls = url.includes('.m3u8') || url.includes('.ts') || url.includes('/live/');
+  // Solo forzamos HLS para canales en vivo (.m3u8)
+  // Para películas (.mkv, .mp4, .ts), dejamos que el navegador decida
+  const isLive = url.includes('.m3u8') || url.includes('/live/');
 
   return (
     <div className="relative w-full h-full bg-black rounded-3xl overflow-hidden shadow-2xl">
@@ -58,7 +59,7 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
           playsinline={true}
           config={{
             file: {
-              forceHLS: isHls,
+              forceHLS: isLive,
               attributes: {
                 crossOrigin: "anonymous",
                 style: { objectFit: 'contain' }
@@ -66,7 +67,6 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
               hlsOptions: {
                 enableWorker: true,
                 lowLatencyMode: true,
-                backBufferLength: 90
               }
             }
           }}
@@ -89,7 +89,7 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
           <AlertCircle className="h-12 w-12 text-destructive mb-4" />
           <h3 className="text-lg font-bold text-white mb-2">Error de Reproducción</h3>
           <p className="text-zinc-500 text-xs mb-6 max-w-xs">
-            El formato de video no es compatible o el servidor ha rechazado la conexión.
+            El formato de video ({url.split('.').pop()?.split('?')[0]}) puede no ser compatible con tu navegador web.
           </p>
           <Button onClick={() => setRetryKey(k => k + 1)} variant="outline" size="sm">
             <RefreshCw className="mr-2 h-4 w-4" /> Reintentar
