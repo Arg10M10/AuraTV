@@ -1,4 +1,5 @@
 import { useQuery, useQueries } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 const SERVERS = [
@@ -14,22 +15,14 @@ export const xtreamApiRequest = async (action: string) => {
 
   for (const server of SERVERS) {
     try {
-      const apiUrl = `${server}/player_api.php?username=${USER}&password=${PASS}&action=${action}`;
-      const proxyUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second timeout
+      const { data, error } = await supabase.functions.invoke('xtream-proxy', {
+        body: { server, action },
+      });
 
-      const response = await fetch(proxyUrl, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`Respuesta no OK (${response.status}) del servidor: ${server}`);
+      if (error) {
+        throw error;
       }
       
-      const textContent = await response.text();
-      const data = JSON.parse(textContent);
-
       if (data.user_info?.auth === 0) {
         throw new Error(`Autenticación fallida en el servidor: ${server}`);
       }
