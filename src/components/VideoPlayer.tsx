@@ -47,8 +47,6 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
           height="100%"
           controls
           autoPlay
-          crossOrigin="anonymous"
-          referrerPolicy="no-referrer"
           onCanPlay={handleCanPlay}
           onError={handleError}
           onWaiting={() => setIsLoading(true)}

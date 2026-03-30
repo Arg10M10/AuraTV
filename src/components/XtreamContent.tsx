@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { proxyImage } from "@/lib/utils";
 
 interface XtreamContentProps {
   categories: any[];
@@ -79,7 +80,7 @@ const XtreamContent = ({ categories, streams, onSelectChannel, currentChannelId 
                   <div className="w-10 h-10 rounded bg-muted flex items-center justify-center mr-3 overflow-hidden">
                     {stream.stream_icon ? (
                       <img
-                        src={stream.stream_icon}
+                        src={proxyImage(stream.stream_icon)}
                         alt=""
                         className="w-full h-full object-contain"
                         onError={(e) => (e.currentTarget.style.display = 'none')}

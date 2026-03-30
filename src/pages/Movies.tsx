@@ -6,6 +6,7 @@ import VideoPlayer from "@/components/VideoPlayer";
 import ContentCard from "@/components/ContentCard";
 import { Loader2, Search, ArrowLeft, Film } from "lucide-react";
 import { useXtreamQuery, getXtreamMovieUrl } from "@/hooks/useXtream";
+import { proxyImage } from "@/lib/utils";
 
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -58,7 +59,7 @@ const Movies = () => {
           <div className="p-8 flex flex-col md:flex-row gap-8 items-start">
             {selectedMovie.stream_icon ? (
               <img 
-                src={selectedMovie.stream_icon} 
+                src={proxyImage(selectedMovie.stream_icon)} 
                 alt={selectedMovie.name}
                 className="w-48 rounded-xl shadow-lg object-cover aspect-[2/3] bg-zinc-900"
                 onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
@@ -127,7 +128,7 @@ const Movies = () => {
                 <ContentCard 
                   key={movie.stream_id}
                   title={movie.name}
-                  imageUrl={movie.stream_icon || "/placeholder.svg"}
+                  imageUrl={proxyImage(movie.stream_icon)}
                   onClick={() => handleSelectMovie(movie)}
                 />
               ))}

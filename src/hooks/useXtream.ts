@@ -53,11 +53,11 @@ export const getXtreamMovieUrl = (serverUrl: string, streamId: string | number, 
     if (!serverUrl) return "";
     const finalExtension = extension === 'mkv' ? 'ts' : (extension || 'mp4');
     const videoUrl = `${serverUrl}/movie/${USER}/${PASS}/${streamId}.${finalExtension}`;
-    return videoUrl;
+    return `${CORS_PROXY}${encodeURIComponent(videoUrl)}`;
 }
 
 export const getXtreamLiveUrl = (serverUrl: string, streamId: string | number) => {
     if (!serverUrl) return "";
     const videoUrl = `${serverUrl}/live/${USER}/${PASS}/${streamId}.m3u8`;
-    return videoUrl;
+    return `${CORS_PROXY}${encodeURIComponent(videoUrl)}`;
 }

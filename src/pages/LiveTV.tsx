@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Loader2, Tv, ShieldCheck } from "lucide-react";
 import { getXtreamLiveUrl, xtreamApiRequest } from "@/hooks/useXtream";
+import { proxyImage } from "@/lib/utils";
 
 interface MergedChannel {
   id: string | number;
@@ -52,7 +53,7 @@ const LiveTV = () => {
         .map((s: any) => ({
           id: s.stream_id,
           name: s.name,
-          logo: s.stream_icon || "/placeholder.svg",
+          logo: proxyImage(s.stream_icon),
           url: getXtreamLiveUrl(workingServer, s.stream_id),
           country: cat.category_name
         }))
