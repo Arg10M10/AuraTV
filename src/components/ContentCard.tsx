@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, isAllowedImage } from "@/lib/utils";
 
 interface ContentCardProps {
   title: string;
@@ -11,7 +11,8 @@ interface ContentCardProps {
 }
 
 const ContentCard = ({ title, imageUrl, onClick, className }: ContentCardProps) => {
-  const [hasError, setHasError] = useState(false);
+  const allowed = isAllowedImage(imageUrl);
+  const [hasError, setHasError] = useState(!allowed);
 
   return (
     <button
@@ -26,7 +27,7 @@ const ContentCard = ({ title, imageUrl, onClick, className }: ContentCardProps) 
       <div className="aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-900 border border-white/5 group-focus:border-primary shadow-2xl">
         {hasError ? (
           <div className="h-full w-full bg-gradient-to-br from-zinc-800 via-zinc-900 to-black flex items-center justify-center p-6 text-center">
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-tighter leading-tight">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-tighter leading-tight px-2">
               {title}
             </span>
           </div>
@@ -35,7 +36,6 @@ const ContentCard = ({ title, imageUrl, onClick, className }: ContentCardProps) 
             src={imageUrl}
             alt=""
             className="h-full w-full object-cover"
-            // No usamos proxy para no saturar la red con peticiones externas
             onError={() => setHasError(true)}
             loading="lazy"
           />
