@@ -17,9 +17,8 @@ serve(async (req) => {
     const { server, action } = await req.json();
     console.log(`[xtream-proxy] Solicitando ${action} a ${server}`);
 
-    // Usamos un AbortController para no quedar colgados si el servidor IPTV no responde
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos max
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // Aumentamos a 30s para listas masivas
 
     const apiUrl = `${server}/player_api.php?username=${USER}&password=${PASS}&action=${action}`;
     
@@ -39,22 +38,15 @@ serve(async (req) => {
 
     const data = await response.json();
     
-    // Si la lista es masiva, enviamos solo una parte para evitar bloquear el navegador en el primer render
-    // (Luego el usuario puede buscar o filtrar)
-    let processedData = data;
-    if (Array.isArray(data) && data.length > 5000) {
-      console.log(`[xtream-proxy] Lista masiva detectada (${data.length} items). Enviando fragmento optimizado.`);
-      processedData = data.slice(0, 5000); 
-    }
-
-    return new Response(JSON.stringify(processedData), {
+    // IMPORTANTE: Ya no cortamos la lista. Enviamos todo el catálogo.
+    return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
   } catch (error) {
-    console.error("[xtream-proxy] Error crítico:", error.name === 'AbortError' ? 'Timeout alcanzado' : error.message);
+    console.error("[xtream-proxy] Error:", error.message);
     return new Response(JSON.stringify({ 
-      error: error.name === 'AbortError' ? "El servidor IPTV tardó demasiado en responder" : error.message 
+      error: error.name === 'AbortError' ? "La lista es demasiado grande para el tiempo de espera del servidor" : error.message 
     }), {
       status: error.name === 'AbortError' ? 504 : 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
