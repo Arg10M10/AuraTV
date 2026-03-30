@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, range',
+  'Access-Control-Expose-Headers': 'content-type, content-length, accept-ranges, content-range',
 }
 
 serve(async (req) => {
@@ -25,24 +26,35 @@ serve(async (req) => {
     const headers = new Headers({
       'User-Agent': 'IPTVSmarters/1.0.0 (iPad; iPhone; iOS)',
     });
+    
     if (range) {
       headers.set('Range', range);
     }
 
-    const response = await fetch(videoUrl, { headers });
-
-    if (!response.ok && response.status !== 206) { // 206 is Partial Content, which is OK
-      const errorText = await response.text();
-      throw new Error(`Respuesta no OK (${response.status}) del servidor de video: ${errorText}`);
-    }
-
-    const responseHeaders = new Headers(corsHeaders);
-    response.headers.forEach((value, key) => {
-        // Forward essential headers from the origin server
-        if (['content-type', 'content-length', 'accept-ranges', 'content-range'].includes(key.toLowerCase())) {
-            responseHeaders.set(key, value);
-        }
+    const response = await fetch(videoUrl, { 
+      headers,
+      redirect: 'follow'
     });
+
+    // Clonamos las cabeceras de CORS y añadimos las del servidor original
+    const responseHeaders = new Headers(corsHeaders);
+    
+    // Forward essential headers from the origin server
+    const headersToForward = ['content-type', 'content-length', 'accept-ranges', 'content-range'];
+    response.headers.forEach((value, key) => {
+      if (headersToForward.includes(key.toLowerCase())) {
+        responseHeaders.set(key, value);
+      }
+    });
+
+    // Si el servidor no devuelve content-type, intentamos inferirlo o poner uno genérico
+    if (!responseHeaders.has('content-type')) {
+      if (videoUrl.includes('.m3u8')) {
+        responseHeaders.set('content-type', 'application/x-mpegURL');
+      } else {
+        responseHeaders.set('content-type', 'video/mp4');
+      }
+    }
 
     return new Response(response.body, {
       status: response.status,
