@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import ReactPlayer from "react-player/lazy";
+import ReactPlayer from "react-player";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
