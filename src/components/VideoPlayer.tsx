@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import ReactPlayer from "react-player/lazy";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -10,77 +11,62 @@ interface VideoPlayerProps {
 }
 
 const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
+  const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     setIsLoading(true);
     setHasError(false);
-  }, [url]);
+  }, [url, retryKey]);
 
-  const handleCanPlay = () => {
+  const handleReady = () => {
     setIsLoading(false);
   };
 
-  const handleError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    const videoElement = e.currentTarget;
-    const error = videoElement.error;
-    let errorMessage = "Error desconocido.";
-    if (error) {
-        switch (error.code) {
-            case error.MEDIA_ERR_ABORTED:
-                errorMessage = 'La carga del video fue abortada.';
-                break;
-            case error.MEDIA_ERR_NETWORK:
-                errorMessage = 'Error de red. Revisa tu conexión o el proxy podría estar fallando.';
-                break;
-            case error.MEDIA_ERR_DECODE:
-                errorMessage = 'Error de decodificación. El archivo de video podría estar corrupto.';
-                break;
-            case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                errorMessage = 'Formato de video no soportado o URL incorrecta.';
-                break;
-            default:
-                errorMessage = 'Ocurrió un error inesperado durante la reproducción.';
-                break;
-        }
-        console.error(`🔴 Error en reproductor: Code ${error.code}; Message: ${error.message || errorMessage}`, error);
-    } else {
-        console.error("🔴 Error en reproductor (evento sin objeto de error):", e);
-    }
-    
+  const handleError = (e: any, data?: any) => {
+    console.error("🔴 Error en ReactPlayer:", { error: e, data });
     setIsLoading(false);
     setHasError(true);
   };
   
   const handleRetry = () => {
-    if (videoRef.current) {
-      videoRef.current.load();
-      setIsLoading(true);
-      setHasError(false);
-    }
+    setRetryKey(prevKey => prevKey + 1);
   };
+
+  if (!isClient) {
+    return (
+      <div className="relative w-full h-full bg-black group rounded-3xl overflow-hidden flex items-center justify-center">
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-full bg-black group rounded-3xl overflow-hidden">
       {url ? (
-        <video
-          ref={videoRef}
-          key={url}
+        <ReactPlayer
+          key={`${url}-${retryKey}`}
+          url={url}
           width="100%"
           height="100%"
-          controls
-          autoPlay
-          onCanPlay={handleCanPlay}
+          playing={true}
+          controls={true}
+          onReady={handleReady}
+          onBuffer={() => setIsLoading(true)}
+          onBufferEnd={() => setIsLoading(false)}
           onError={handleError}
-          onWaiting={() => setIsLoading(true)}
-          onPlaying={() => setIsLoading(false)}
-          className="w-full h-full object-contain"
-        >
-          <source src={url} />
-          Tu navegador no soporta el video.
-        </video>
+          config={{
+            file: {
+              forceHLS: url.includes('.m3u8'),
+            }
+          }}
+        />
       ) : (
         <div className="flex items-center justify-center h-full text-white/20">
           Esperando señal del servidor premium...
@@ -101,7 +87,7 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
           <AlertCircle className="h-16 w-16 text-destructive mb-4" />
           <h3 className="text-2xl font-bold mb-2 text-white">Error de Reproducción</h3>
           <p className="text-zinc-400 text-sm max-w-md mb-8">
-            El servidor no responde o el formato no es compatible. Intenta recargar.
+            No se pudo cargar el video. Esto puede deberse a un problema con el servidor o la red.
           </p>
           <Button onClick={handleRetry} size="lg" className="bg-primary hover:bg-primary/80 text-white">
             <RefreshCw className="mr-2 h-5 w-5" /> Reintentar
