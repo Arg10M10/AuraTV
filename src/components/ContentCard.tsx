@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface ContentCardProps {
@@ -8,27 +11,37 @@ interface ContentCardProps {
 }
 
 const ContentCard = ({ title, imageUrl, onClick, className }: ContentCardProps) => {
+  const [hasError, setHasError] = useState(false);
+
   return (
     <button
       onClick={onClick}
-      // tabIndex={0} asegura que el control remoto de la TV pueda seleccionarlo
       tabIndex={0}
       className={cn(
         "group relative flex flex-col w-full text-left transition-all duration-300 outline-none",
-        "focus:scale-110 focus:z-10 focus:ring-8 focus:ring-primary/50 focus:shadow-[0_0_40px_rgba(255,255,255,0.1)]", // Estilo TV
+        "focus:scale-105 focus:z-10 focus:ring-4 focus:ring-primary/50",
         className
       )}
     >
-      <div className="aspect-[2/3] w-full overflow-hidden rounded-2xl bg-zinc-900 border-2 border-white/5 group-focus:border-primary shadow-lg transition-all">
-        <img
-          src={imageUrl}
-          alt={title}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-          loading="lazy"
-          onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
-        />
+      <div className="aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-900 border border-white/5 group-focus:border-primary shadow-2xl">
+        {hasError ? (
+          <div className="h-full w-full bg-gradient-to-br from-zinc-800 via-zinc-900 to-black flex items-center justify-center p-6 text-center">
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-tighter leading-tight">
+              {title}
+            </span>
+          </div>
+        ) : (
+          <img
+            src={imageUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            // No usamos proxy para no saturar la red con peticiones externas
+            onError={() => setHasError(true)}
+            loading="lazy"
+          />
+        )}
       </div>
-      <h3 className="mt-3 text-xs font-bold text-zinc-500 group-focus:text-primary line-clamp-1 uppercase tracking-tighter opacity-0 group-focus:opacity-100 transition-opacity">
+      <h3 className="mt-2 text-[10px] font-bold text-zinc-600 group-focus:text-primary line-clamp-1 uppercase opacity-0 group-focus:opacity-100 transition-opacity">
         {title}
       </h3>
     </button>
