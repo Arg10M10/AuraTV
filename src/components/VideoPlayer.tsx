@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
-import { Loader2, MonitorPlay } from "lucide-react";
+import { Loader2, Smartphone, MonitorPlay } from "lucide-react";
 
 interface VideoPlayerProps {
   url: string;
@@ -13,53 +13,49 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Generamos la URL a través del proxy de Supabase para saltar bloqueos
-  const proxiedUrl = url 
-    ? `https://vspullgchtzqgdclqjaw.supabase.co/functions/v1/video-proxy?url=${encodeURIComponent(url)}`
-    : "";
-
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !proxiedUrl) return;
+    if (!video || !url) return;
 
     setIsLoading(true);
     setError(null);
 
-    // Lógica para Streams HLS (.m3u8 o .ts)
+    // Si es un stream HLS (.m3u8 o .ts adaptativo)
     if (url.includes(".m3u8") || url.includes(".ts")) {
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
-          xhrSetup: (xhr) => {
-            xhr.withCredentials = false;
-          }
+          lowLatencyMode: true,
         });
-        hls.loadSource(proxiedUrl);
+        hls.loadSource(url);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setIsLoading(false);
-          video.play().catch(() => {});
+          video.play().catch(console.warn);
         });
         hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) setError("Error de conexión con el canal");
+          if (data.fatal) {
+            setError(`Fallo HLS: ${data.type}`);
+            setIsLoading(false);
+          }
         });
         return () => hls.destroy();
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = proxiedUrl;
+        // Soporte nativo de Safari/Android Webview para HLS
+        video.src = url;
       }
     } else {
-      // Para Películas (MKV, MP4, etc.) usamos el motor nativo de Android
-      video.src = proxiedUrl;
+      // Para .mkv, .mp4 o streams directos (Aprovecha Hardware Accel)
+      video.src = url;
     }
 
     const handleCanPlay = () => {
       setIsLoading(false);
-      video.play().catch(() => {});
+      video.play().catch(console.warn);
     };
 
-    const handleError = (e: any) => {
-      console.error("Video Error:", video.error);
-      setError("No se pudo decodificar el video. Intenta con otro título.");
+    const handleError = () => {
+      setError("Error de decodificación. Verifica los permisos de red (Cleartext).");
       setIsLoading(false);
     };
 
@@ -69,31 +65,33 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
     return () => {
       video.removeEventListener("canplay", handleCanPlay);
       video.removeEventListener("error", handleError);
+      video.pause();
+      video.src = "";
     };
-  }, [proxiedUrl, url]);
+  }, [url]);
 
   return (
-    <div className="relative w-full h-full bg-black rounded-3xl overflow-hidden shadow-2xl group border-4 border-white/5">
+    <div className="relative w-full h-full bg-black rounded-3xl overflow-hidden shadow-2xl group border-4 border-white/5 focus-within:border-primary transition-all">
       <video
         ref={videoRef}
         className="w-full h-full object-contain"
         controls
         playsInline
-        crossOrigin="anonymous"
+        preload="auto"
       />
       
       {isLoading && !error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-10">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-white text-xs font-bold uppercase tracking-widest animate-pulse">Iniciando Túnel Seguro...</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10">
+          <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
+          <p className="text-white font-black tracking-widest text-xs uppercase animate-pulse">Sincronizando 4K</p>
         </div>
       )}
 
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 p-8 text-center z-20">
-          <MonitorPlay className="h-16 w-16 text-destructive mb-4" />
-          <h3 className="text-white text-lg font-bold mb-2">STREAM NO DISPONIBLE</h3>
-          <p className="text-zinc-500 text-xs">{error}</p>
+          <MonitorPlay className="h-16 w-16 text-destructive mb-6" />
+          <h3 className="text-white text-xl font-black mb-2">STREAM BLOQUEADO</h3>
+          <p className="text-zinc-500 text-sm max-w-sm">{error}</p>
         </div>
       )}
     </div>
