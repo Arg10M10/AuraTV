@@ -5,109 +5,134 @@ import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
 import ContentCard from "@/components/ContentCard";
-import { Loader2, Search, ArrowLeft, AlertCircle } from "lucide-react";
+import { Loader2, Search, ArrowLeft, Server, PlayCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { findBestIptvMatch } from "@/lib/iptv-match";
-import { showError } from "@/utils/toast";
+import { Button } from "@/components/ui/button";
 
-const CORS_PROXY = "https://proxy.cors.sh/";
+// Usamos un proxy CORS público para evitar errores de Mixed Content (HTTP en HTTPS)
+const CORS_PROXY = "https://corsproxy.io/?";
 
 const Movies = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
-  const [iptvStreamId, setIptvStreamId] = useState<string | null>(null);
+  const [playMode, setPlayMode] = useState<"xtream" | "vidsrc" | null>(null);
+  const [xtreamUrl, setXtreamUrl] = useState<string | null>(null);
 
-  // Obtenemos películas y credenciales en una sola llamada a la función segura
-  const { data: iptvResult, isLoading, error: fetchError } = useQuery({
-    queryKey: ["xtreamMoviesData"],
+  // 1. Carga de TMDB (Interfaz Visual)
+  const { data: tmdbMovies, isLoading: loadingTmdb } = useQuery({
+    queryKey: ["tmdbMovies", searchQuery],
+    queryFn: async () => {
+      const endpoint = searchQuery ? "/search/movie" : "/movie/popular";
+      const { data, error } = await supabase.functions.invoke('tmdb-proxy', {
+        body: { endpoint, query: searchQuery }
+      });
+      if (error) throw error;
+      return data.results || [];
+    },
+  });
+
+  // 2. Carga Silenciosa del Catálogo IPTV (Caché en background)
+  const { data: iptvData } = useQuery({
+    queryKey: ["xtreamVodCache"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('xtream-proxy', {
         body: { action: "get_vod_streams" }
       });
       if (error) throw error;
       return {
-        streams: data.data,
+        streams: Array.isArray(data.data) ? data.data : [],
         creds: data.credentials
       };
     },
-    staleTime: 1000 * 60 * 30, // 30 minutos de caché
+    staleTime: 1000 * 60 * 60, // Caché de 1 hora
   });
 
-  const handleSelectMovie = (tmdbMovie: any) => {
-    if (!iptvResult?.streams) {
-      showError("Sincronizando biblioteca...");
-      return;
+  // 3. Lógica de Matching al hacer clic
+  const handleSelectMovie = (movie: any) => {
+    setSelectedMovie(movie);
+    
+    if (iptvData?.streams && iptvData?.creds) {
+      const match = findBestIptvMatch(movie.title, movie.release_date, iptvData.streams);
+      
+      if (match) {
+        // Construcción de la URL de Video
+        const { server, user, pass } = iptvData.creds;
+        const extension = match.container_extension || "mp4";
+        // Pasamos la URL por el proxy CORS para evitar bloqueos de Cleartext/Mixed Content
+        const rawUrl = `${server}/movie/${user}/${pass}/${match.stream_id}.${extension}`;
+        setXtreamUrl(`${CORS_PROXY}${encodeURIComponent(rawUrl)}`);
+        setPlayMode("xtream");
+        return;
+      }
     }
-    // Buscamos el ID del stream que coincide con el nombre de la película
-    const match = findBestIptvMatch(tmdbMovie.name, iptvResult.streams);
-    if (match) {
-      setSelectedMovie(tmdbMovie);
-      setIptvStreamId(match.stream_id);
-    } else {
-      showError("Película no encontrada en el servidor.");
-    }
+    
+    // Si no hay match o no ha cargado Xtream, vamos directo al respaldo
+    setPlayMode("vidsrc");
   };
 
-  // Pantalla de Carga
-  if (isLoading) {
-    return (
-      <Layout>
-        <div className="flex flex-col h-[70vh] items-center justify-center space-y-4 bg-zinc-950 text-white rounded-3xl">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="text-xl font-bold animate-pulse">Sincronizando Aura Cine...</p>
-        </div>
-      </Layout>
-    );
-  }
-
-  // Pantalla de Error
-  if (fetchError) {
-    return (
-      <Layout>
-        <div className="flex flex-col h-[70vh] items-center justify-center p-8 text-center bg-zinc-950 text-white rounded-3xl border border-white/10">
-          <AlertCircle className="h-16 w-16 text-destructive mb-4" />
-          <h2 className="text-2xl font-bold">Error de Conexión</h2>
-          <p className="text-muted-foreground mt-2 max-w-md">
-            No se pudo conectar con el servidor de streaming. Revisa tu configuración en Supabase.
-          </p>
-        </div>
-      </Layout>
-    );
-  }
-
   // Modo Reproductor
-  if (selectedMovie && iptvStreamId && iptvResult?.creds) {
-    const { server, user, pass } = iptvResult.creds;
-    // Construimos la URL de la película usando las credenciales dinámicas
-    const streamUrl = `${server}/movie/${user}/${pass}/${iptvStreamId}.mp4`;
-    
+  if (selectedMovie && playMode) {
     return (
       <Layout>
         <div className="space-y-6 min-h-screen bg-zinc-950 text-white p-4 rounded-3xl">
-          <button 
-            onClick={() => { setSelectedMovie(null); setIptvStreamId(null); }}
-            className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors p-2"
-          >
-            <ArrowLeft className="h-5 w-5" /> Volver al Catálogo
-          </button>
+          <div className="flex items-center justify-between">
+            <button 
+              onClick={() => { setSelectedMovie(null); setPlayMode(null); setXtreamUrl(null); }}
+              className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors p-2"
+            >
+              <ArrowLeft className="h-5 w-5" /> Volver al Catálogo
+            </button>
+
+            {/* Botón de Respaldo Manual */}
+            {playMode === "xtream" && (
+              <Button 
+                variant="outline" 
+                className="bg-white/5 border-white/10 hover:bg-white/10 text-white"
+                onClick={() => setPlayMode("vidsrc")}
+              >
+                <Server className="mr-2 h-4 w-4" />
+                Ver en Servidor de Respaldo
+              </Button>
+            )}
+          </div>
           
           <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl bg-black border border-white/5">
-            <VideoPlayer url={`${CORS_PROXY}${streamUrl}`} />
+            {playMode === "xtream" && xtreamUrl ? (
+              <VideoPlayer url={xtreamUrl} />
+            ) : (
+              <iframe
+                src={`https://vidsrc.to/embed/movie/${selectedMovie.id}`}
+                className="w-full h-full border-0"
+                allowFullScreen
+              />
+            )}
           </div>
 
-          <div className="p-8">
-            <h1 className="text-4xl font-black">{selectedMovie.name}</h1>
-            <p className="text-zinc-500 mt-2">Streaming en Alta Definición desde {server}</p>
+          <div className="p-8 flex flex-col md:flex-row gap-8 items-start">
+            <img 
+              src={`https://image.tmdb.org/t/p/w300${selectedMovie.poster_path}`} 
+              alt={selectedMovie.title}
+              className="w-48 rounded-xl shadow-lg"
+            />
+            <div>
+              <h1 className="text-4xl font-black">{selectedMovie.title}</h1>
+              <div className="flex items-center gap-4 mt-2 text-zinc-400">
+                <span>{selectedMovie.release_date?.substring(0, 4)}</span>
+                <span className="flex items-center gap-1 text-primary">
+                  <PlayCircle className="h-4 w-4" /> 
+                  {playMode === "xtream" ? "Servidor Principal (Xtream)" : "Servidor de Respaldo (VidSrc)"}
+                </span>
+              </div>
+              <p className="text-zinc-300 mt-6 max-w-3xl leading-relaxed">
+                {selectedMovie.overview || "Sin sinopsis disponible."}
+              </p>
+            </div>
           </div>
         </div>
       </Layout>
     );
   }
-
-  // Pantalla Principal (Grid de películas)
-  const displayMovies = (iptvResult?.streams || [])
-    .filter((m: any) => m.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    .slice(0, 50);
 
   return (
     <Layout>
@@ -117,7 +142,7 @@ const Movies = () => {
           <div className="bg-white/5 backdrop-blur-xl p-3 rounded-2xl flex items-center gap-3 border border-white/10 w-full md:w-80">
             <Search className="h-5 w-5 text-white/40" />
             <input 
-              placeholder="Buscar película..." 
+              placeholder="Buscar en TMDB..." 
               className="bg-transparent border-none outline-none text-white w-full"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -128,23 +153,29 @@ const Movies = () => {
         <section>
           <div className="flex items-center gap-2 mb-8">
             <div className="h-1 w-12 bg-primary rounded-full"></div>
-            <h2 className="text-xl font-bold text-white/40 uppercase tracking-widest">Películas Recientes</h2>
+            <h2 className="text-xl font-bold text-white/40 uppercase tracking-widest">
+              {searchQuery ? "Resultados de Búsqueda" : "Películas Populares"}
+            </h2>
           </div>
           
-          {displayMovies.length > 0 ? (
+          {loadingTmdb ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+          ) : tmdbMovies?.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-              {displayMovies.map((movie: any) => (
+              {tmdbMovies.map((movie: any) => (
                 <ContentCard 
-                  key={movie.stream_id}
-                  title={movie.name}
-                  imageUrl={movie.stream_icon}
+                  key={movie.id}
+                  title={movie.title}
+                  imageUrl={movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : "/placeholder.svg"}
                   onClick={() => handleSelectMovie(movie)}
                 />
               ))}
             </div>
           ) : (
             <div className="py-20 text-center text-zinc-500 italic">
-              No se encontraron resultados para "{searchQuery}"
+              No se encontraron resultados.
             </div>
           )}
         </section>
