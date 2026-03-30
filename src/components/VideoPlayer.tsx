@@ -16,17 +16,19 @@ const VideoPlayer = ({ url, onNextServer, serverName }: VideoPlayerProps) => {
   const [hasError, setHasError] = useState(false);
   const [showMixedContentWarning, setShowMixedContentWarning] = useState(false);
 
+  // Resetear estados cuando cambia la URL (al cambiar de servidor)
   useEffect(() => {
     setIsLoading(true);
     setHasError(false);
     setShowMixedContentWarning(false);
   }, [url]);
 
+  // Detector de Timeout
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     if (isLoading && url) {
       timeout = setTimeout(() => {
-        if (isLoading) {
+        if (isLoading) { // Si sigue cargando después de 8s
           setShowMixedContentWarning(true);
         }
       }, 8000);
@@ -38,7 +40,7 @@ const VideoPlayer = ({ url, onNextServer, serverName }: VideoPlayerProps) => {
     <div className="relative w-full h-full bg-black group rounded-3xl overflow-hidden">
       {url ? (
         <ReactPlayer
-          key={url}
+          key={url} // Fuerza a recargar el componente si cambia la URL
           url={url}
           controls
           playing
@@ -57,16 +59,14 @@ const VideoPlayer = ({ url, onNextServer, serverName }: VideoPlayerProps) => {
           }}
           config={{
             file: {
-              forceHLS: true,
+              forceHLS: true, // Regla #3: Forzar HLS.js para compatibilidad
               attributes: {
                 crossOrigin: "anonymous",
-                referrerPolicy: "no-referrer",
               },
               hlsOptions: {
-                enableWorker: true,
-                lowLatencyMode: false,
+                // Regla #5: Forzar el User-Agent solicitado
                 xhrSetup: function(xhr: any) {
-                  xhr.setRequestHeader('User-Agent', 'Mozilla/5.0 (SmartHub; SMART-TV; U; Linux/SmartTV) AppleWebKit/538.1');
+                  xhr.setRequestHeader('User-Agent', 'Mozilla/5.0');
                 }
               }
             }

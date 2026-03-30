@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
@@ -8,9 +8,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Loader2, Tv, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Loader2, Globe, Tv, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import ChannelListItem from "@/components/ChannelListItem";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface MergedChannel {
   id: string | number;
@@ -20,16 +26,20 @@ interface MergedChannel {
   country: string;
 }
 
-const CORS_PROXY = "https://api.allorigins.win/raw?url=";
+// Regla #2: Usar proxy CORS para saltar la seguridad del navegador
+const CORS_PROXY = "https://corsproxy.io/?";
 
 const LiveTV = () => {
-  const [activeTab, setActiveTab] = useState("xtream");
+  const [activeTab, setActiveTab] = useState("xtream"); // Xtream por defecto
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [currentChannel, setCurrentChannel] = useState<MergedChannel | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
+  // Query para canales Xtream usando la Edge Function
   const { data: xtreamResult, isLoading: loadingXtream, error: xtreamError } = useQuery({
     queryKey: ["xtreamData"],
     queryFn: async () => {
+      // Obtenemos categorías y canales usando la función de Supabase
       const fetchFromProxy = async (action: string) => {
         const { data, error } = await supabase.functions.invoke('xtream-proxy', {
           body: { action }
@@ -46,12 +56,13 @@ const LiveTV = () => {
       return { 
         categories: catsRes.data, 
         streams: streamsRes.data,
-        creds: catsRes.credentials
+        creds: catsRes.credentials // Obtenemos las credenciales resueltas por la función
       };
     },
-    staleTime: 1000 * 60 * 30,
+    staleTime: 1000 * 60 * 30, // 30 minutos
   });
 
+  // Procesamiento de datos para la UI de Xtream
   const filteredGroups = useMemo(() => {
     if (!xtreamResult) return [];
     const { categories, streams, creds } = xtreamResult;
@@ -65,6 +76,7 @@ const LiveTV = () => {
           id: s.stream_id,
           name: s.name,
           logo: s.stream_icon || "/placeholder.svg",
+          // Construimos la URL de video con las credenciales seguras
           url: `${creds.server}/live/${creds.user}/${creds.pass}/${s.stream_id}.m3u8`,
           country: cat.category_name
         }))
@@ -90,7 +102,7 @@ const LiveTV = () => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[300px]">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="xtream">Canales Privados</TabsTrigger>
-              <TabsTrigger value="public" disabled>Públicos</TabsTrigger>
+              <TabsTrigger value="public">Públicos</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -107,7 +119,8 @@ const LiveTV = () => {
                 </span>
               )}
             </div>
-            <Card className="overflow-hidden border-2 shadow-xl bg-black aspect-video">
+            <Card className="overflow-hidden border-2 shadow-xl bg-black">
+              {/* Usamos el proxy para el video para evitar problemas de CORS */}
               <VideoPlayer 
                 url={currentChannel ? `${CORS_PROXY}${encodeURIComponent(currentChannel.url)}` : ""} 
               />
@@ -165,12 +178,25 @@ const LiveTV = () => {
                     <ScrollArea className="h-[60vh] rounded-md border p-4 bg-card">
                       <div className="grid gap-3">
                         {activeChannels.map((channel: any) => (
-                          <ChannelListItem
+                          <Card
                             key={channel.id}
-                            channel={channel}
-                            isActive={currentChannel?.id === channel.id}
+                            className={`cursor-pointer hover:border-primary transition-all border-2 ${
+                              currentChannel?.id === channel.id ? "border-primary bg-primary/5" : "border-transparent"
+                            }`}
                             onClick={() => setCurrentChannel(channel)}
-                          />
+                          >
+                            <CardContent className="flex items-center p-3">
+                              <div className="w-10 h-10 rounded bg-muted flex items-center justify-center mr-3 overflow-hidden flex-shrink-0">
+                                <img
+                                  src={channel.logo}
+                                  alt=""
+                                  className="w-full h-full object-contain"
+                                  onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
+                                />
+                              </div>
+                              <span className="text-sm font-medium line-clamp-2">{channel.name}</span>
+                            </CardContent>
+                          </Card>
                         ))}
                       </div>
                     </ScrollArea>
