@@ -26,7 +26,8 @@ interface MergedChannel {
   country: string;
 }
 
-const CORS_PROXY = "https://proxy.cors.sh/";
+// Regla #2: Usar proxy CORS para saltar la seguridad del navegador
+const CORS_PROXY = "https://corsproxy.io/?";
 
 const LiveTV = () => {
   const [activeTab, setActiveTab] = useState("xtream"); // Xtream por defecto
@@ -119,9 +120,9 @@ const LiveTV = () => {
               )}
             </div>
             <Card className="overflow-hidden border-2 shadow-xl bg-black">
-              {/* Usamos el proxy solo para el video si hay problemas de CORS */}
+              {/* Usamos el proxy para el video para evitar problemas de CORS */}
               <VideoPlayer 
-                url={currentChannel ? `${CORS_PROXY}${currentChannel.url}` : ""} 
+                url={currentChannel ? `${CORS_PROXY}${encodeURIComponent(currentChannel.url)}` : ""} 
               />
             </Card>
           </div>
