@@ -6,23 +6,12 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Filtro de imágenes (proxyImage): Solo permite posters de TMDB.
- * Bloquea IPs directas y URLs lentas de proveedores para liberar ancho de banda.
+ * proxyImage: Ahora permite cargar cualquier URL proveniente de Xtream Code.
+ * Se mantiene el placeholder para cuando no hay icono definido.
  */
 export function proxyImage(url: string | null | undefined): string {
   if (!url) return "/placeholder.svg";
 
-  // Solo aceptamos imágenes de TMDB (son las más rápidas y seguras)
-  if (url.includes('image.tmdb.org')) {
-    return url;
-  }
-
-  // Detectamos si es una IP directa (ej: http://185.x.x.x/...) para bloquearla
-  const ipPattern = /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
-  if (ipPattern.test(url)) {
-    return "/placeholder.svg";
-  }
-
-  // Por defecto, si no es TMDB, preferimos no cargarla para no saturar el log
-  return "/placeholder.svg";
+  // Eliminamos todas las restricciones previas para que carguen los iconos del servidor
+  return url;
 }
