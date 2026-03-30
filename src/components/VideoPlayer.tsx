@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ReactPlayer from "react-player";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,24 +15,32 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const [canPlay, setCanPlay] = useState(false); // Nuevo estado para controlar el inicio seguro
+  const playerRef = useRef<ReactPlayer>(null);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
+  // Reiniciamos estados cuando cambia la URL o se pide reintento
   useEffect(() => {
     setIsLoading(true);
     setHasError(false);
+    setCanPlay(false); 
   }, [url, retryKey]);
 
   const handleReady = () => {
     setIsLoading(false);
+    // Solo permitimos jugar cuando el reproductor dice que está listo
+    // Esto evita el error de "play() interrupted"
+    setCanPlay(true);
   };
 
   const handleError = (e: any) => {
     console.error("🔴 Error en ReactPlayer:", e);
     setIsLoading(false);
     setHasError(true);
+    setCanPlay(false);
   };
   
   const handleRetry = () => {
@@ -51,22 +59,25 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
     <div className="relative w-full h-full bg-black group rounded-3xl overflow-hidden">
       {url ? (
         <ReactPlayer
+          ref={playerRef}
           key={`${url}-${retryKey}`}
           url={url}
           width="100%"
           height="100%"
-          playing={true}
+          playing={canPlay} // Solo reproducimos si está listo
           controls={true}
           onReady={handleReady}
           onStart={() => setIsLoading(false)}
           onBuffer={() => setIsLoading(true)}
           onBufferEnd={() => setIsLoading(false)}
           onError={handleError}
+          playsinline={true}
           config={{
             file: {
               attributes: {
-                // Esto ayuda a evitar que propiedades de ReactPlayer se filtren al elemento de video
-                controlsList: 'nodownload'
+                controlsList: 'nodownload',
+                // Prevenir que el navegador intente auto-reproducir antes de tiempo
+                preload: 'auto'
               },
               forceHLS: url.includes('.m3u8') || url.includes('/live/'),
             }
@@ -78,11 +89,11 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
         </div>
       )}
 
-      {isLoading && url && !hasError && (
+      {(isLoading || !canPlay) && url && !hasError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-10 p-6 text-center">
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-6" />
           <p className="text-white font-bold tracking-widest text-sm uppercase">
-            Conectando a {serverName || "Servidor"}...
+            Sincronizando con {serverName || "Servidor"}...
           </p>
         </div>
       )}
@@ -92,10 +103,10 @@ const VideoPlayer = ({ url, serverName }: VideoPlayerProps) => {
           <AlertCircle className="h-16 w-16 text-destructive mb-4" />
           <h3 className="text-2xl font-bold mb-2 text-white">Error de Reproducción</h3>
           <p className="text-zinc-400 text-sm max-w-md mb-8">
-            No se pudo cargar el video. Esto puede deberse a un problema con el servidor o la red.
+            No se pudo establecer la conexión con el flujo de video. Esto puede ocurrir si el canal está temporalmente fuera de línea.
           </p>
           <Button onClick={handleRetry} size="lg" className="bg-primary hover:bg-primary/80 text-white">
-            <RefreshCw className="mr-2 h-5 w-5" /> Reintentar
+            <RefreshCw className="mr-2 h-5 w-5" /> Reintentar Conexión
           </Button>
         </div>
       )}
