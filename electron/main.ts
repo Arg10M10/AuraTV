@@ -1,5 +1,8 @@
 import { app, BrowserWindow, session, ipcMain } from 'electron';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -8,14 +11,14 @@ function createWindow() {
     title: "Aura TV Desktop",
     backgroundColor: '#000000',
     webPreferences: {
-      nodeIntegration: false,    // Desactivado por seguridad
-      contextIsolation: true,    // Activado para usar contextBridge
-      webSecurity: false,        // Permitimos HTTP mixto para streams Xtream
-      preload: path.join(__dirname, 'preload.js'), // Apuntamos al script de precarga
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: false,
+      // Usamos .ts directamente gracias a tsx/register
+      preload: path.join(__dirname, 'preload.ts'), 
     },
   });
 
-  // BYPASS GLOBAL: Inyectar User-Agent en todas las peticiones
   session.defaultSession.webRequest.onBeforeSendHeaders(
     { urls: ['*://*/*'] },
     (details, callback) => {
@@ -24,13 +27,11 @@ function createWindow() {
     }
   );
 
-  // Escuchar mensajes del Frontend (React)
   ipcMain.on('video-playback-start', (event, url) => {
-    console.log(`[Electron-Backend] Reproduciendo flujo: ${url}`);
-    // Aquí podrías añadir Discord RPC o controles de sistema
+    console.log(`[Electron] Stream detectado: ${url}`);
   });
 
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
     win.loadURL('http://localhost:8080');
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'));
