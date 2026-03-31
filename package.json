@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "electron:start": "electron --import tsx .",
+    "electron:start": "electron --import tsx ./electron/main.ts",
     "electron:build": "electron-builder"
   },
   "dependencies": {
