@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, ipcMain } from 'electron';
+import { app, BrowserWindow, session, ipcMain, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -15,12 +15,11 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false,
-      // IMPORTANTE: Cargamos el .js porque Electron no procesa .ts en el preload directamente
       preload: path.join(__dirname, 'preload.js'), 
     },
   });
 
-  // Configuración de cabeceras para saltar restricciones de servidores IPTV
+  // Proxy de cabeceras para evitar bloqueos 403
   session.defaultSession.webRequest.onBeforeSendHeaders(
     { urls: ['*://*/*'] },
     (details, callback) => {
@@ -29,16 +28,16 @@ function createWindow() {
     }
   );
 
-  ipcMain.on('video-playback-start', (event, url) => {
-    console.log(`[Electron] Stream iniciado: ${url}`);
+  // COMANDO PARA ABRIR EN VLC/REPRODUCTOR EXTERNO
+  ipcMain.on('open-external-player', (event, url) => {
+    console.log(`[Electron] Abriendo en reproductor externo: ${url}`);
+    shell.openExternal(url);
   });
 
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
   if (isDev) {
-    win.webContents.openDevTools();
     win.loadURL('http://localhost:8080').catch(() => {
-      console.log("[Electron] Servidor Vite no detectado, reintentando...");
       setTimeout(() => win.loadURL('http://localhost:8080'), 2000);
     });
   } else {
@@ -47,7 +46,4 @@ function createWindow() {
 }
 
 app.whenReady().then(createWindow);
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+app.on('window-all-closed', () => app.quit());

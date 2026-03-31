@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import videojs from "video.js";
-import "video.js/dist/video-js.css";
-import { Loader2, X, Pause, RotateCcw, AlertCircle } from "lucide-react";
+import Hls from "hls.js";
+import { Loader2, X, Play, MonitorPlay, AlertCircle } from "lucide-react";
 
 interface VideoPlayerProps {
   url: string;
@@ -12,85 +11,110 @@ interface VideoPlayerProps {
 
 const VideoPlayer = ({ url, onClose }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const playerRef = useRef<any>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMkv = url.toLowerCase().includes(".mkv");
+
+  const openInExternal = () => {
+    if ((window as any).electronAPI) {
+      (window as any).electronAPI.openExternal(url);
+      onClose();
+    }
+  };
 
   useEffect(() => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (!video) return;
 
-    // COMUNICACIÓN SEGURA: Notificamos al proceso principal de Electron
-    if ((window as any).electronAPI) {
-      (window as any).electronAPI.notifyVideoStart(url);
+    // Si es MKV, mostramos aviso directo ya que Chrome no lo soporta
+    if (isMkv) {
+      setLoading(false);
+      setError("MKV_DETECTED");
+      return;
     }
 
-    const player = (playerRef.current = videojs(videoRef.current, {
-      autoplay: true,
-      controls: false,
-      sources: [{ 
-        src: url, 
-        type: url.includes(".mkv") ? "video/x-matroska" : "video/mp4" 
-      }]
-    }));
-
-    player.on("playing", () => setLoading(false));
-    player.on("error", () => {
-      setError("Error de formato o conexión");
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        backBufferLength: 90
+      });
+      hlsRef.current = hls;
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => setError("AUTOPLAY_BLOCKED"));
+        setLoading(false);
+      });
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+           setError("STREAM_ERROR");
+           setLoading(false);
+        }
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Soporte nativo (Safari/iOS)
+      video.src = url;
+      video.addEventListener('loadedmetadata', () => {
+        video.play();
+        setLoading(false);
+      });
+    } else {
+      setError("NO_HLS_SUPPORT");
       setLoading(false);
-    });
+    }
 
     return () => {
-      if (playerRef.current) playerRef.current.dispose();
+      if (hlsRef.current) hlsRef.current.destroy();
     };
-  }, [url]);
+  }, [url, isMkv]);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center overflow-hidden group">
-      {/* CAPA tvOS GLASSMORPHISM */}
-      <div className="absolute inset-0 z-[110] flex flex-col justify-between p-16 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700 bg-gradient-to-t from-black/90 via-transparent to-black/50">
-        <div className="flex justify-between items-start pointer-events-auto">
-          <div className="bg-white/5 backdrop-blur-[25px] p-6 rounded-[2rem] border border-white/10 shadow-2xl">
-            <h2 className="text-4xl font-black italic tracking-tighter text-white uppercase">Aura TV</h2>
-            <p className="text-primary font-bold text-[10px] tracking-[0.4em] mt-1">DIRECT STREAMING</p>
-          </div>
-          <button onClick={onClose} className="bg-white/10 hover:bg-white/20 backdrop-blur-3xl p-6 rounded-full border border-white/10 transition-all hover:scale-110">
-            <X className="h-10 w-10 text-white" />
-          </button>
-        </div>
-
-        <div className="space-y-12 pointer-events-auto">
-          <div className="flex items-center justify-center gap-16">
-             <button className="text-white/40 hover:text-white transition-all transform hover:scale-110">
-               <RotateCcw className="h-12 w-12" />
-             </button>
-             <button className="bg-white text-black p-8 rounded-full hover:scale-110 shadow-[0_0_50px_rgba(255,255,255,0.2)]">
-               <Pause className="h-14 w-14 fill-black" />
-             </button>
-             <div className="text-white/40 hover:text-white transform rotate-180 hover:scale-110">
-               <RotateCcw className="h-12 w-12" />
-             </div>
-          </div>
-          <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden backdrop-blur-md">
-            <div className="h-full bg-white w-1/4 shadow-[0_0_15px_white]" />
-          </div>
-        </div>
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
+      <div className="absolute top-8 right-8 z-[110]">
+        <button onClick={onClose} className="bg-white/10 hover:bg-white/20 p-4 rounded-full backdrop-blur-xl border border-white/10 transition-all">
+          <X className="h-8 w-8 text-white" />
+        </button>
       </div>
 
-      <video ref={videoRef} className="video-js vjs-big-play-centered w-full h-full object-contain" />
+      <video 
+        ref={videoRef} 
+        className="w-full h-full object-contain"
+        controls={!loading && !error}
+      />
 
-      {loading && !error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-[120]">
-          <Loader2 className="h-20 w-20 animate-spin text-primary" />
-          <p className="mt-8 text-white font-black tracking-[0.5em] uppercase text-xs animate-pulse">Sincronizando Hardware</p>
+      {(loading && !error) && (
+        <div className="absolute inset-0 bg-black flex flex-col items-center justify-center space-y-6">
+          <Loader2 className="h-16 w-16 animate-spin text-primary" />
+          <p className="text-zinc-500 font-bold tracking-widest uppercase text-xs animate-pulse">Sincronizando flujo de datos...</p>
         </div>
       )}
 
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-[120] p-12 text-center">
-          <AlertCircle className="h-20 w-20 text-destructive mb-6" />
-          <h3 className="text-2xl font-bold mb-2">Formato no compatible directamente</h3>
-          <p className="text-zinc-500 max-w-md">Este servidor utiliza el contenedor .mkv. Te recomendamos usar la versión de escritorio para una mejor compatibilidad.</p>
-          <button onClick={onClose} className="mt-8 bg-white text-black px-8 py-3 rounded-full font-bold">VOLVER</button>
+        <div className="absolute inset-0 bg-zinc-950 flex flex-col items-center justify-center p-12 text-center space-y-8">
+          <div className="bg-primary/10 p-8 rounded-full">
+            <MonitorPlay className="h-20 w-20 text-primary" />
+          </div>
+          <div className="space-y-4 max-w-lg">
+            <h2 className="text-3xl font-black italic uppercase tracking-tighter">Formato de Cine Detectado</h2>
+            <p className="text-zinc-400 font-medium">
+              Este contenido (.mkv / AC3) requiere el motor de renderizado de **VLC Media Player** para una reproducción fluida en 4K.
+            </p>
+          </div>
+          
+          <div className="flex flex-col gap-4 w-full max-w-xs">
+            <button 
+              onClick={openInExternal}
+              className="bg-primary text-primary-foreground py-5 rounded-2xl font-black uppercase tracking-tighter text-lg hover:scale-105 transition-transform flex items-center justify-center gap-3 shadow-2xl shadow-primary/20"
+            >
+              <Play className="h-6 w-6 fill-current" />
+              Abrir en VLC
+            </button>
+            <button onClick={onClose} className="text-zinc-500 font-bold hover:text-white transition-colors">
+              Volver al catálogo
+            </button>
+          </div>
         </div>
       )}
     </div>
