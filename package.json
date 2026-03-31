@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "electron:start": "electron -r tsx/register .",
+    "electron:start": "electron --import tsx .",
     "electron:build": "electron-builder"
   },
   "dependencies": {
@@ -24,12 +24,12 @@
     "tailwind-merge": "^2.5.2"
   },
   "devDependencies": {
-    "electron": "^41.1.0",
+    "electron": "^34.0.0",
     "electron-builder": "^24.13.3",
     "vite": "^6.3.4",
     "typescript": "^5.5.3",
     "tailwindcss": "^3.4.11",
-    "tsx": "^4.7.1"
+    "tsx": "^4.19.2"
   },
   "build": {
     "appId": "com.auratv.desktop",

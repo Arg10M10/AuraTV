@@ -2,7 +2,9 @@ import { app, BrowserWindow, session, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Reemplazo de __dirname para ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -14,11 +16,12 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false,
-      // Usamos .ts directamente gracias a tsx/register
+      // Ruta absoluta al archivo .ts
       preload: path.join(__dirname, 'preload.ts'), 
     },
   });
 
+  // Configuración de cabeceras para el servidor IPTV
   session.defaultSession.webRequest.onBeforeSendHeaders(
     { urls: ['*://*/*'] },
     (details, callback) => {
