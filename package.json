@@ -51,6 +51,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
+    "electron": "^41.1.0",
     "embla-carousel-react": "^8.3.0",
     "hls.js": "^1.6.15",
     "input-otp": "^1.2.4",
