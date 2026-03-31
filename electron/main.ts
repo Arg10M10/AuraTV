@@ -15,8 +15,8 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false,
-      // Usamos el archivo .ts directamente ya que tsx lo manejará en el proceso de Electron
-      preload: path.join(__dirname, 'preload.ts'), 
+      // IMPORTANTE: Cargamos el .js porque Electron no procesa .ts en el preload directamente
+      preload: path.join(__dirname, 'preload.js'), 
     },
   });
 
@@ -36,10 +36,7 @@ function createWindow() {
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
   if (isDev) {
-    // Abrimos herramientas de desarrollo automáticamente para ver errores
     win.webContents.openDevTools();
-    
-    // Intentamos cargar la URL de Vite. Si falla (porque Vite aún no está listo), reintentamos en 2 segundos.
     win.loadURL('http://localhost:8080').catch(() => {
       console.log("[Electron] Servidor Vite no detectado, reintentando...");
       setTimeout(() => win.loadURL('http://localhost:8080'), 2000);
