@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "electron:start": "cross-env NODE_OPTIONS=\"--import tsx\" electron .",
+    "electron:start": "cross-env NODE_ENV=development NODE_OPTIONS=\"--import tsx\" electron .",
     "electron:build": "electron-builder"
   },
   "dependencies": {

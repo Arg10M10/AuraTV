@@ -2,7 +2,6 @@ import { app, BrowserWindow, session, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Reemplazo de __dirname para ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -16,12 +15,12 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false,
-      // Ruta absoluta al archivo .ts
+      // Usamos el archivo .ts directamente ya que tsx lo manejará en el proceso de Electron
       preload: path.join(__dirname, 'preload.ts'), 
     },
   });
 
-  // Configuración de cabeceras para el servidor IPTV
+  // Configuración de cabeceras para saltar restricciones de servidores IPTV
   session.defaultSession.webRequest.onBeforeSendHeaders(
     { urls: ['*://*/*'] },
     (details, callback) => {
@@ -31,11 +30,20 @@ function createWindow() {
   );
 
   ipcMain.on('video-playback-start', (event, url) => {
-    console.log(`[Electron] Stream detectado: ${url}`);
+    console.log(`[Electron] Stream iniciado: ${url}`);
   });
 
-  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
-    win.loadURL('http://localhost:8080');
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
+  if (isDev) {
+    // Abrimos herramientas de desarrollo automáticamente para ver errores
+    win.webContents.openDevTools();
+    
+    // Intentamos cargar la URL de Vite. Si falla (porque Vite aún no está listo), reintentamos en 2 segundos.
+    win.loadURL('http://localhost:8080').catch(() => {
+      console.log("[Electron] Servidor Vite no detectado, reintentando...");
+      setTimeout(() => win.loadURL('http://localhost:8080'), 2000);
+    });
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
