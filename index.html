@@ -3,12 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
-    <title>dyad-generated-app</title>
+    <title>Aura TV Desktop</title>
+    <style>
+      body { background-color: #09090b; margin: 0; color: white; font-family: sans-serif; }
+      #loading-hint { position: fixed; top: 10px; right: 10px; font-size: 10px; opacity: 0.3; }
+    </style>
   </head>
-
-  <body>
+  <body class="dark">
     <div id="root"></div>
+    <div id="loading-hint">Sincronizando Core...</div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
