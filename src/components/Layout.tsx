@@ -1,5 +1,5 @@
 import React from "react";
-import Sidebar from "./Sidebar";
+import FloatingNav from "./FloatingNav";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -7,9 +7,9 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <main className="flex-grow ml-64 p-8">
+    <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-primary selection:text-primary-foreground">
+      <FloatingNav />
+      <main className="pt-32 pb-20 px-4 md:px-12 max-w-[1600px] mx-auto">
         {children}
       </main>
     </div>

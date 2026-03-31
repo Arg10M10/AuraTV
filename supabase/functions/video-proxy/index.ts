@@ -25,7 +25,6 @@ serve(async (req) => {
     const headers = new Headers({
       'User-Agent': 'IPTVSmarters/1.0.0',
       'Accept': '*/*',
-      'Referer': '', // Referer vacío como pediste
       'Connection': 'keep-alive'
     });
 
@@ -35,22 +34,20 @@ serve(async (req) => {
     // Petición al servidor inicial (redireccionará a limitedcdn.com)
     const response = await fetch(videoUrl, { 
       headers,
-      redirect: 'follow' // SIGUE EL SALTO A HTTPS://LIMITEDCDN.COM AUTOMÁTICAMENTE
+      redirect: 'follow' 
     });
-
-    console.log("[video-proxy] CDN respondió con status:", response.status, "URL Final:", response.url);
 
     const responseHeaders = new Headers(corsHeaders);
     
-    // Copiamos las cabeceras vitales para que el reproductor web pueda funcionar
+    // Copiamos las cabeceras vitales para el reproductor
     ['content-type', 'content-length', 'accept-ranges', 'content-range'].forEach(h => {
       const val = response.headers.get(h);
       if (val) responseHeaders.set(h, val);
     });
 
-    // Si el CDN no dice qué es, le decimos al navegador que es video matroska/mkv
+    // Si el CDN no especifica, forzamos tipo video
     if (!responseHeaders.has('content-type')) {
-      responseHeaders.set('content-type', 'video/x-matroska');
+      responseHeaders.set('content-type', videoUrl.includes('.mkv') ? 'video/x-matroska' : 'video/mp4');
     }
 
     return new Response(response.body, {
@@ -59,7 +56,6 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error("[video-proxy] Error crítico:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

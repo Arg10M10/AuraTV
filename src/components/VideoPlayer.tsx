@@ -3,23 +3,23 @@
 import { useEffect, useRef, useState } from "react";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 
 interface VideoPlayerProps {
   url: string;
+  onClose: () => void;
 }
 
-const VideoPlayer = ({ url }: VideoPlayerProps) => {
+const VideoPlayer = ({ url, onClose }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!videoRef.current || !url) return;
+  // Convertimos la URL original en una URL de Proxy
+  const proxiedUrl = `https://vspullgchtzqgdclqjaw.supabase.co/functions/v1/video-proxy?url=${encodeURIComponent(url)}`;
 
-    setError(null);
-    setLoading(true);
+  useEffect(() => {
+    if (!videoRef.current) return;
 
     const videoElement = document.createElement("video-js");
     videoElement.classList.add("vjs-big-play-centered", "vjs-theme-city");
@@ -30,59 +30,37 @@ const VideoPlayer = ({ url }: VideoPlayerProps) => {
       controls: true,
       responsive: true,
       fluid: true,
-      preload: "auto",
       sources: [{ 
-        src: url, 
-        // Intentamos detectar si es live (.ts) o movie (.mkv)
-        type: url.includes(".ts") ? "video/mp2t" : "video/mp4" 
-      }],
-      userActions: {
-        hotkeys: true
-      }
-    }, () => {
-      console.log("[VideoPlayer] Player ready");
+        src: proxiedUrl, 
+        type: url.includes(".mkv") ? "video/webm" : "video/mp4" 
+      }]
     }));
 
-    player.on("playing", () => {
-      setLoading(false);
-      setError(null);
-    });
-
+    player.on("playing", () => setLoading(false));
     player.on("waiting", () => setLoading(true));
-
-    player.on("error", () => {
-      const errorObj = player.error();
-      setError(`Error de reproducción: ${errorObj ? errorObj.message : 'Desconocido'}`);
-      setLoading(false);
-    });
 
     return () => {
       if (player) {
         player.dispose();
-        playerRef.current = null;
       }
     };
-  }, [url]);
+  }, [proxiedUrl, url]);
 
   return (
-    <div className="relative w-full h-full bg-black flex items-center justify-center group">
-      <div ref={videoRef} className="w-full h-full" />
-      
-      {loading && !error && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-          <p className="text-white/70 text-xs font-bold uppercase tracking-widest animate-pulse">
-            Sincronizando Stream...
-          </p>
-        </div>
-      )}
+    <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
+      <button 
+        onClick={onClose}
+        className="absolute top-6 right-6 z-[110] bg-white/10 hover:bg-white/20 p-3 rounded-full text-white transition-all"
+      >
+        <X className="h-8 w-8" />
+      </button>
 
-      {error && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-zinc-900 p-8 text-center">
-          <AlertCircle className="h-16 w-16 text-destructive mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">No se pudo cargar el video</h3>
-          <p className="text-zinc-500 text-sm max-w-xs">{error}</p>
-          <p className="text-zinc-600 text-[10px] mt-4 uppercase font-black">Verifica que el servidor kytv.xyz esté online</p>
+      <div ref={videoRef} className="w-full max-w-6xl aspect-video shadow-2xl" />
+
+      {loading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="mt-4 text-white font-bold tracking-widest uppercase text-xs">Conectando Túnel Seguro...</p>
         </div>
       )}
     </div>
