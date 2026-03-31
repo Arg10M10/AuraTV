@@ -76,12 +76,21 @@ const VideoPlayer = ({ url, onClose }: VideoPlayerProps) => {
         </div>
       </div>
 
-      <video ref={videoRef} className="w-full h-full object-contain" />
+      <video ref={videoRef} className="video-js vjs-big-play-centered w-full h-full object-contain" />
 
       {loading && !error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-[120]">
           <Loader2 className="h-20 w-20 animate-spin text-primary" />
           <p className="mt-8 text-white font-black tracking-[0.5em] uppercase text-xs animate-pulse">Sincronizando Hardware</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 z-[120] p-12 text-center">
+          <AlertCircle className="h-20 w-20 text-destructive mb-6" />
+          <h3 className="text-2xl font-bold mb-2">Formato no compatible directamente</h3>
+          <p className="text-zinc-500 max-w-md">Este servidor utiliza el contenedor .mkv. Te recomendamos usar la versión de escritorio para una mejor compatibilidad.</p>
+          <button onClick={onClose} className="mt-8 bg-white text-black px-8 py-3 rounded-full font-bold">VOLVER</button>
         </div>
       )}
     </div>
